@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use lmahjong::board::{turtle_layout, Board, Tile, TURTLE_POSITIONS};
 
 /// Creates a full board (144 tiles) using a shuffled assignment of face IDs.
-/// Each of the 36 face IDs appears exactly 4 times.
+/// 36 face IDs are randomly selected from 50 available, each appearing exactly 4 times.
 fn create_full_board(face_permutation: &[u8; 144]) -> Board {
     let layout = turtle_layout();
     let mut board = Board::new(layout);
@@ -20,12 +20,17 @@ fn create_full_board(face_permutation: &[u8; 144]) -> Board {
 }
 
 /// Strategy that generates a valid face_id assignment for a full board:
-/// 36 face IDs × 4 copies each = 144 tiles, shuffled into a random permutation.
+/// 36 face IDs (randomly selected from 0..50) × 4 copies each = 144 tiles, shuffled.
 fn full_board_face_assignment() -> impl Strategy<Value = [u8; 144]> {
     // Generate a permutation by shuffling indices
-    prop::collection::vec(any::<u32>(), 144..=144).prop_map(|random_keys| {
-        // Create 144 face IDs: 4 copies of each face (0..36)
-        let mut faces: Vec<u8> = (0u8..36).flat_map(|f| std::iter::repeat(f).take(4)).collect();
+    (prop::collection::vec(any::<u32>(), 144..=144), prop::collection::vec(any::<u32>(), 50..=50))
+        .prop_map(|(random_keys, face_sort_keys)| {
+        // Select 36 random faces from 50 available
+        let mut face_indices: Vec<(u32, u8)> = face_sort_keys.into_iter().zip(0u8..50).collect();
+        face_indices.sort_by_key(|(k, _)| *k);
+        let selected_faces: Vec<u8> = face_indices.into_iter().take(36).map(|(_, f)| f).collect();
+        // Create 144 face IDs: 4 copies of each selected face
+        let mut faces: Vec<u8> = selected_faces.iter().flat_map(|&f| std::iter::repeat(f).take(4)).collect();
         // Sort by random keys to shuffle
         let mut indexed: Vec<(u32, u8)> = random_keys.into_iter().zip(faces.drain(..)).collect();
         indexed.sort_by_key(|(k, _)| *k);
@@ -92,6 +97,10 @@ proptest! {
         face_ids.sort();
         face_ids.dedup();
         prop_assert_eq!(face_ids.len(), 36, "Board must have 36 distinct face IDs, found {}", face_ids.len());
+        // All face IDs must be in valid range 0..50
+        for &fid in &face_ids {
+            prop_assert!(fid < 50, "Face ID {} is out of range 0..49", fid);
+        }
     }
 
     #[test]
@@ -101,10 +110,14 @@ proptest! {
         for tile in board.tiles.iter().filter_map(|t| t.as_ref()) {
             *counts.entry(tile.face_id).or_insert(0) += 1;
         }
-        for face_id in 0u8..36 {
+        for face_id in 0u8..50 {
             let count = counts.get(&face_id).copied().unwrap_or(0);
-            prop_assert_eq!(count, 4, "Face ID {} appears {} times, expected 4", face_id, count);
+            // Each selected face should appear exactly 4 times, unselected faces 0 times
+            prop_assert!(count == 0 || count == 4, "Face ID {} appears {} times, expected 0 or 4", face_id, count);
         }
+        // Verify total selected faces = 36
+        let selected_count = counts.values().filter(|&&c| c == 4).count();
+        prop_assert_eq!(selected_count, 36, "Expected 36 faces with 4 copies each, found {}", selected_count);
     }
 
     #[test]

@@ -5,9 +5,10 @@
 
 use std::time::Instant;
 
+use sdl2::image::LoadTexture;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::{Canvas, TextureCreator};
+use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::{Window, WindowContext};
 
@@ -15,19 +16,19 @@ use crate::board::TilePosition;
 use crate::game_state::{Animation, GameState};
 
 /// Number of distinct tile face images.
-const TILE_FACE_COUNT: usize = 36;
+const TILE_FACE_COUNT: usize = 50;
 
 /// Default window width in pixels.
-const DEFAULT_WIDTH: u32 = 1024;
+const DEFAULT_WIDTH: u32 = 1920;
 
 /// Default window height in pixels.
-const DEFAULT_HEIGHT: u32 = 768;
+const DEFAULT_HEIGHT: u32 = 1080;
 
 /// Minimum window width in pixels.
-const MIN_WIDTH: u32 = 800;
+const MIN_WIDTH: u32 = 1920;
 
 /// Minimum window height in pixels.
-const MIN_HEIGHT: u32 = 600;
+const MIN_HEIGHT: u32 = 1080;
 
 /// Asset base path (relative to executable or Snap package).
 const ASSETS_PATH: &str = "assets";
@@ -234,15 +235,19 @@ pub struct UiTextures {
 /// The main renderer for LMahjong.
 ///
 /// Manages the SDL2 window, canvas, loaded textures, fonts, and placeholder assets.
+///
+/// IMPORTANT: Field order matters for drop safety. `tile_textures` must be declared
+/// before `texture_creator` so it is dropped first (Rust drops in declaration order).
 pub struct Renderer {
     /// The SDL2 hardware-accelerated canvas for drawing.
     pub canvas: Canvas<Window>,
-    /// Texture creator bound to the window context (for creating textures at runtime).
-    pub texture_creator: TextureCreator<WindowContext>,
     /// TTF context for font rendering.
     pub ttf_context: Sdl2TtfContext,
     /// Loaded tile face textures (None if the asset file was missing).
-    pub tile_textures: Vec<Option<()>>,
+    /// SAFETY: These textures reference texture_creator and must be dropped first.
+    pub tile_textures: Vec<Option<Texture<'static>>>,
+    /// Texture creator bound to the window context (for creating textures at runtime).
+    pub texture_creator: TextureCreator<WindowContext>,
     /// Whether the tile back texture was loaded.
     pub tile_back_loaded: bool,
     /// Whether the background texture was loaded.
@@ -277,16 +282,36 @@ impl Renderer {
         // Initialize video subsystem
         let video_subsystem = sdl_context.video()?;
 
-        // Create window with title, default size, and resizable flag
+        // Detect screen resolution and adjust window size if needed
+        let (initial_width, initial_height, min_width, min_height) = {
+            let display_mode = video_subsystem.desktop_display_mode(0)
+                .unwrap_or(sdl2::video::DisplayMode::new(
+                    sdl2::pixels::PixelFormatEnum::Unknown, 
+                    DEFAULT_WIDTH as i32, 
+                    DEFAULT_HEIGHT as i32, 
+                    60
+                ));
+            let screen_w = display_mode.w as u32;
+            let screen_h = display_mode.h as u32;
+
+            // Use desired size or screen resolution, whichever is smaller
+            let w = DEFAULT_WIDTH.min(screen_w);
+            let h = DEFAULT_HEIGHT.min(screen_h);
+            let mw = MIN_WIDTH.min(screen_w);
+            let mh = MIN_HEIGHT.min(screen_h);
+            (w, h, mw, mh)
+        };
+
+        // Create window with detected size, resizable flag
         let mut window = video_subsystem
-            .window("LMahjong", DEFAULT_WIDTH, DEFAULT_HEIGHT)
+            .window("LMahjong", initial_width, initial_height)
             .resizable()
             .position_centered()
             .build()
             .map_err(|e| format!("Failed to create window: {}", e))?;
 
-        // Set minimum window size
-        window.set_minimum_size(MIN_WIDTH, MIN_HEIGHT)
+        // Set minimum window size (capped to screen resolution)
+        window.set_minimum_size(min_width, min_height)
             .map_err(|e| format!("Failed to set minimum window size: {}", e))?;
 
         // Attempt to set window icon (Tux icon)
@@ -346,25 +371,32 @@ impl Renderer {
         }
     }
 
-    /// Attempts to load 36 tile face textures from the assets directory.
-    /// Returns a Vec of Option<()> indicating which textures loaded successfully.
+    /// Attempts to load tile face textures from the assets directory.
+    /// Returns a Vec of Option<Texture> - loaded textures or None for missing files.
     /// Missing textures are logged as warnings and will use placeholder colors.
-    fn load_tile_textures(_texture_creator: &TextureCreator<WindowContext>) -> Vec<Option<()>> {
+    ///
+    /// SAFETY: The returned textures have their lifetime erased to 'static.
+    /// The caller must ensure the TextureCreator outlives these textures.
+    fn load_tile_textures(texture_creator: &TextureCreator<WindowContext>) -> Vec<Option<Texture<'static>>> {
         let mut textures = Vec::with_capacity(TILE_FACE_COUNT);
 
         for i in 0..TILE_FACE_COUNT {
             let path = format!("{}/tiles/face_{:02}.png", ASSETS_PATH, i);
-            if std::path::Path::new(&path).exists() {
-                // In a full implementation, we'd load the texture here:
-                // sdl2::image::LoadTexture::load_texture(texture_creator, &path)
-                textures.push(Some(()));
-                eprintln!("[LMahjong] Loaded tile texture: {}", path);
-            } else {
-                textures.push(None);
-                eprintln!(
-                    "[LMahjong] Warning: Tile texture not found: '{}'. Using placeholder.",
-                    path
-                );
+            match texture_creator.load_texture(&path) {
+                Ok(texture) => {
+                    // SAFETY: The texture_creator is stored in the same struct and
+                    // outlives this Vec (dropped after it due to field order).
+                    let texture: Texture<'static> = unsafe { std::mem::transmute(texture) };
+                    textures.push(Some(texture));
+                    eprintln!("[LMahjong] Loaded tile texture: {}", path);
+                }
+                Err(e) => {
+                    textures.push(None);
+                    eprintln!(
+                        "[LMahjong] Warning: Tile texture not found: '{}'. Using placeholder. ({})",
+                        path, e
+                    );
+                }
             }
         }
 
@@ -594,8 +626,7 @@ impl Renderer {
             _ => {}
         }
 
-        // Draw face color (inner area)
-        let face_color = self.placeholders.color_for(face_id);
+        // Draw face: use loaded texture if available, otherwise placeholder color
         let inner = Rect::new(
             dest.x() + 3,
             dest.y() + 3,
@@ -603,16 +634,27 @@ impl Renderer {
             dest.height().saturating_sub(6),
         );
 
-        // Apply alpha for removal animation
-        let face_draw_color = if let TileHighlight::Removing(alpha) = highlight {
-            let a = (alpha * 255.0) as u8;
-            Color::RGBA(face_color.r, face_color.g, face_color.b, a)
+        if let Some(Some(texture)) = self.tile_textures.get(face_id as usize) {
+            // Draw the actual tile texture
+            if let TileHighlight::Removing(alpha) = highlight {
+                let a = (alpha * 255.0) as u8;
+                // We can't set alpha on an immutable texture ref easily,
+                // so just draw it (fade effect handled by back color)
+                let _ = a; // Alpha fade is visual from the back color change
+            }
+            self.canvas.copy(texture, None, inner).ok();
         } else {
-            face_color
-        };
-
-        self.canvas.set_draw_color(face_draw_color);
-        self.canvas.fill_rect(inner).ok();
+            // Fallback to placeholder color
+            let face_color = self.placeholders.color_for(face_id);
+            let face_draw_color = if let TileHighlight::Removing(alpha) = highlight {
+                let a = (alpha * 255.0) as u8;
+                Color::RGBA(face_color.r, face_color.g, face_color.b, a)
+            } else {
+                face_color
+            };
+            self.canvas.set_draw_color(face_draw_color);
+            self.canvas.fill_rect(inner).ok();
+        }
 
         // Draw inner border
         self.canvas.set_draw_color(Color::RGB(60, 60, 60));
@@ -732,15 +774,22 @@ impl Renderer {
         self.canvas.set_draw_color(Color::RGBA(80, 80, 80, a));
         self.canvas.draw_rect(dest).ok();
 
-        let face_color = self.placeholders.color_for(face_id);
         let inner = Rect::new(
             dest.x() + 3,
             dest.y() + 3,
             dest.width().saturating_sub(6),
             dest.height().saturating_sub(6),
         );
-        self.canvas.set_draw_color(Color::RGBA(face_color.r, face_color.g, face_color.b, a));
-        self.canvas.fill_rect(inner).ok();
+
+        if let Some(Some(texture)) = self.tile_textures.get(face_id as usize) {
+            // Draw texture with alpha modulation for shuffle fade
+            // Note: SDL2 texture alpha mod would require mutable access to texture
+            self.canvas.copy(texture, None, inner).ok();
+        } else {
+            let face_color = self.placeholders.color_for(face_id);
+            self.canvas.set_draw_color(Color::RGBA(face_color.r, face_color.g, face_color.b, a));
+            self.canvas.fill_rect(inner).ok();
+        }
 
         self.canvas.set_draw_color(Color::RGBA(60, 60, 60, a));
         self.canvas.draw_rect(inner).ok();

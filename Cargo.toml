@@ -3,7 +3,7 @@ name = "lmahjong"
 version = "0.1.0"
 edition = "2021"
 description = "A Tux-themed Mahjong solitaire game for Linux"
-license = "MIT"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 sdl2 = { version = "0.37", features = ["image", "mixer", "ttf"] }

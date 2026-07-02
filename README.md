@@ -13,9 +13,8 @@ LMahjong is a classic tile-matching solitaire game featuring Tux penguin-themed 
 - Hint system, undo (up to 10 moves), and shuffle (up to 3 per game)
 - Timer and scoring system with local leaderboard (top 10)
 - Keyboard shortcuts for all actions
-- Fullscreen toggle (F11)
 - Audio feedback with mute support
-- Resizable window (min 800×600)
+- Resizable window (min 1920×1080, adapts to screen resolution)
 - Ubuntu Snap package distribution
 
 ## Prerequisites
@@ -100,7 +99,6 @@ The project includes 19 property-based tests using `proptest` that validate corr
 | Hint            | Ctrl+H       |
 | Shuffle         | Ctrl+S       |
 | Toggle Mute     | Ctrl+M       |
-| Fullscreen      | F11          |
 | Pause / Menu    | Escape       |
 
 ## Scoring
@@ -144,38 +142,7 @@ sudo snap connect lmahjong:audio-playback
 
 ## Assets
 
-The game runs without any assets (using colored rectangles as placeholders), but for a polished look you'll want to create the following:
-
-```
-assets/
-├── icon.png                   # Window/desktop icon (e.g. 64×64 or 128×128)
-├── background.png             # Board background texture
-├── fonts/
-│   └── default.ttf            # Font for timer, score, menus (any TTF works)
-├── tiles/
-│   ├── tile_back.png          # Tile border/body drawn behind each face
-│   ├── face_00.png            # Tile face images (36 total)
-│   ├── face_01.png            # Each appears 4× on the board
-│   ├── face_02.png
-│   ├── ...
-│   └── face_35.png
-└── sounds/
-    ├── match.ogg              # Played on successful tile match
-    ├── error.ogg              # Played on mismatched pair
-    ├── victory.ogg            # Played when board is cleared
-    └── shuffle.ogg            # Played during shuffle
-```
-
-| Asset | Count | Notes |
-|-------|-------|-------|
-| Tile faces | 36 PNGs | Tux-themed variations (poses, accessories, expressions). 64×64 or 128×128 recommended. |
-| Tile back | 1 PNG | The border/body texture drawn behind each tile face |
-| Background | 1 PNG | Linux-themed motif (penguin habitat, terminal aesthetic, etc.) |
-| Icon | 1 PNG | Application icon for the window title bar and desktop entry |
-| Font | 1 TTF | Any monospace or clean sans-serif font works |
-| Sounds | 4 OGGs | Short sound effects (< 3 seconds each) |
-
-All assets are optional — missing files are logged as warnings to stderr and the game falls back to colored rectangles and silent operation.
+![Tux Penguin Sprite Sheet](sprite/tux-sprite-lmahjong.png)
 
 ## Data Storage
 
@@ -216,3 +183,5 @@ snap/
 ```
 
 ## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).

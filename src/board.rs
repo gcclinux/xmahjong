@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 /// Represents a tile on the board with its face image and position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tile {
-    /// Face image ID (0..35), identifies which of the 36 tile faces this tile shows.
+    /// Face image ID (0..49), identifies which of the 50 tile faces this tile shows.
     pub face_id: u8,
     /// The position this tile occupies on the board.
     pub position: TilePosition,
@@ -777,7 +777,7 @@ mod tests {
         // Fill all positions
         for i in 0..144 {
             board.tiles[i] = Some(Tile {
-                face_id: (i % 36) as u8,
+                face_id: (i % 50) as u8,
                 position: layout.positions[i],
             });
         }
@@ -793,7 +793,7 @@ mod tests {
         // Fill all positions to create a full board
         for i in 0..144 {
             board.tiles[i] = Some(Tile {
-                face_id: (i % 36) as u8,
+                face_id: (i % 50) as u8,
                 position: layout.positions[i],
             });
         }

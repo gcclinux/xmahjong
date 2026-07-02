@@ -564,7 +564,7 @@ mod tests {
         // Fill all positions
         for i in 0..144 {
             board.tiles[i] = Some(Tile {
-                face_id: (i % 36) as u8,
+                face_id: (i % 50) as u8,
                 position: layout.positions[i],
             });
         }

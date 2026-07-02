@@ -44,7 +44,8 @@ impl BoardGenerator {
     /// The algorithm:
     /// 1. Fill all positions with dummy tiles
     /// 2. Repeatedly find free tiles, pick 2, remove them (recording the pair)
-    /// 3. Once all 72 pairs are removed, assign face IDs (36 faces × 2 pairs each)
+    /// 3. Once all 72 pairs are removed, randomly select 36 faces from the 50
+    ///    available and assign face IDs (36 faces × 2 pairs each)
     /// 4. Build the final board from those assignments
     ///
     /// If the algorithm gets stuck (no free pairs available), it retries up to
@@ -120,10 +121,14 @@ impl BoardGenerator {
         }
 
         // Step 3: Assign face IDs to the pairs
-        // 36 faces × 2 pairs each = 72 pairs
-        // Shuffle the face ID assignment for randomness
+        // Select 36 faces randomly from the 50 available, then assign 2 pairs each = 72 pairs.
+        // This gives visual variety between games since different faces appear each time.
+        let mut available_faces: Vec<u8> = (0u8..50).collect();
+        available_faces.shuffle(&mut self.rng);
+        let selected_faces: Vec<u8> = available_faces[..36].to_vec();
+
         let mut face_assignments: Vec<u8> = Vec::with_capacity(72);
-        for face_id in 0u8..36 {
+        for &face_id in &selected_faces {
             face_assignments.push(face_id);
             face_assignments.push(face_id);
         }
@@ -223,7 +228,7 @@ mod tests {
             *face_counts.entry(tile.face_id).or_insert(0) += 1;
         }
 
-        // Should have exactly 36 distinct face IDs
+        // Should have exactly 36 distinct face IDs (randomly selected from 50 available)
         assert_eq!(face_counts.len(), 36);
 
         // Each face ID should appear exactly 4 times
@@ -309,8 +314,8 @@ mod tests {
 
         for tile in board.tiles.iter().flatten() {
             assert!(
-                tile.face_id < 36,
-                "Face ID {} is out of range 0..35",
+                tile.face_id < 50,
+                "Face ID {} is out of range 0..49",
                 tile.face_id
             );
         }
