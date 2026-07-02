@@ -1,0 +1,30 @@
+# Rust build artifacts
+/target/
+
+# Cargo lock (optional for binaries, but usually committed)
+# Cargo.lock
+
+# IDE / editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Kiro spec tooling
+.kiro/
+
+# Snap build artifacts
+*.snap
+parts/
+prime/
+stage/
+snap/.snapcraft/
+
+# Runtime data (leaderboard, settings)
+leaderboard.json
+settings.json

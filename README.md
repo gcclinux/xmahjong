@@ -1,0 +1,222 @@
+# LMahjong
+
+A Tux-themed Mahjong solitaire game for Linux, built with Rust and SDL2.
+
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+
+## About
+
+LMahjong is a classic tile-matching solitaire game featuring Tux penguin-themed graphics. Clear all 144 tiles from the board by matching pairs of free tiles. The game uses the traditional Turtle layout with 5 stacked layers, and every generated board is guaranteed to be solvable.
+
+### Features
+
+- Classic Turtle layout with 144 tiles across 5 layers
+- Guaranteed solvable boards via reverse-deal generation
+- Hint system, undo (up to 10 moves), and shuffle (up to 3 per game)
+- Timer and scoring system with local leaderboard (top 10)
+- Keyboard shortcuts for all actions
+- Fullscreen toggle (F11)
+- Audio feedback with mute support
+- Resizable window (min 800×600)
+- Ubuntu Snap package distribution
+
+## Prerequisites
+
+### System Dependencies
+
+You need SDL2 development libraries installed:
+
+**Ubuntu / Debian:**
+
+```bash
+sudo apt install libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev pkg-config
+```
+
+**Fedora:**
+
+```bash
+sudo dnf install SDL2-devel SDL2_image-devel SDL2_mixer-devel SDL2_ttf-devel pkg-config
+```
+
+**Arch Linux:**
+
+```bash
+sudo pacman -S sdl2 sdl2_image sdl2_mixer sdl2_ttf pkg-config
+```
+
+### Rust Toolchain
+
+Install Rust via [rustup](https://rustup.rs/):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+## Building
+
+```bash
+# Debug build
+cargo build
+
+# Release build (optimized)
+cargo build --release
+```
+
+The binary is output to `target/debug/lmahjong` or `target/release/lmahjong`.
+
+## Running
+
+```bash
+# Run directly
+cargo run
+
+# Or run the release binary
+cargo run --release
+```
+
+## Running Tests
+
+```bash
+# Run all tests (unit + property-based)
+cargo test
+
+# Run only unit tests
+cargo test --lib
+
+# Run a specific property test file
+cargo test --test board_properties
+
+# Run tests with output shown
+cargo test -- --nocapture
+```
+
+The project includes 19 property-based tests using `proptest` that validate correctness properties like board generation invariants, solvability, matching logic, undo/redo behavior, shuffle guarantees, and layout scaling.
+
+## Controls
+
+| Action          | Shortcut     |
+|-----------------|--------------|
+| Select tile     | Left click   |
+| New Game        | Ctrl+N       |
+| Undo            | Ctrl+Z       |
+| Hint            | Ctrl+H       |
+| Shuffle         | Ctrl+S       |
+| Toggle Mute     | Ctrl+M       |
+| Fullscreen      | F11          |
+| Pause / Menu    | Escape       |
+
+## Scoring
+
+```
+Score = max(0, 1000 - elapsed_seconds - hints_used × 50 - shuffles_used × 100)
+```
+
+Complete the game fast, with fewer hints and shuffles, for a higher score. Top 10 scores are saved to a local leaderboard.
+
+## Installing as a Snap
+
+Build and install locally:
+
+```bash
+# Install snapcraft if needed
+sudo snap install snapcraft --classic
+
+# Build the snap
+snapcraft
+
+# Install the local snap
+sudo snap install lmahjong_*.snap --dangerous
+```
+
+After installation, run with:
+
+```bash
+lmahjong
+```
+
+### Snap Interfaces
+
+The snap requires these interfaces (auto-connected on most systems):
+
+```bash
+sudo snap connect lmahjong:x11
+sudo snap connect lmahjong:opengl
+sudo snap connect lmahjong:audio-playback
+```
+
+## Assets
+
+The game runs without any assets (using colored rectangles as placeholders), but for a polished look you'll want to create the following:
+
+```
+assets/
+├── icon.png                   # Window/desktop icon (e.g. 64×64 or 128×128)
+├── background.png             # Board background texture
+├── fonts/
+│   └── default.ttf            # Font for timer, score, menus (any TTF works)
+├── tiles/
+│   ├── tile_back.png          # Tile border/body drawn behind each face
+│   ├── face_00.png            # Tile face images (36 total)
+│   ├── face_01.png            # Each appears 4× on the board
+│   ├── face_02.png
+│   ├── ...
+│   └── face_35.png
+└── sounds/
+    ├── match.ogg              # Played on successful tile match
+    ├── error.ogg              # Played on mismatched pair
+    ├── victory.ogg            # Played when board is cleared
+    └── shuffle.ogg            # Played during shuffle
+```
+
+| Asset | Count | Notes |
+|-------|-------|-------|
+| Tile faces | 36 PNGs | Tux-themed variations (poses, accessories, expressions). 64×64 or 128×128 recommended. |
+| Tile back | 1 PNG | The border/body texture drawn behind each tile face |
+| Background | 1 PNG | Linux-themed motif (penguin habitat, terminal aesthetic, etc.) |
+| Icon | 1 PNG | Application icon for the window title bar and desktop entry |
+| Font | 1 TTF | Any monospace or clean sans-serif font works |
+| Sounds | 4 OGGs | Short sound effects (< 3 seconds each) |
+
+All assets are optional — missing files are logged as warnings to stderr and the game falls back to colored rectangles and silent operation.
+
+## Data Storage
+
+- **Leaderboard:** `$SNAP_USER_DATA/leaderboard.json` (snap) or `~/.local/share/lmahjong/leaderboard.json`
+- **Settings:** `$SNAP_USER_DATA/settings.json` or `~/.local/share/lmahjong/settings.json`
+
+## Project Structure
+
+```
+src/
+├── main.rs          # Game loop and SDL2 initialization
+├── lib.rs           # Module exports
+├── board.rs         # Tile layout, positions, free-tile detection
+├── generator.rs     # Reverse-deal solvable board generation
+├── logic.rs         # Selection, matching, undo, shuffle, hints
+├── game_state.rs    # Central game state and types
+├── timer.rs         # Elapsed time tracking with pause
+├── renderer.rs      # SDL2 rendering, layout scaling, UI overlays
+├── input.rs         # Event processing and keyboard shortcuts
+├── audio.rs         # SDL2_mixer audio with graceful degradation
+└── storage.rs       # Leaderboard and settings persistence
+tests/
+├── board_properties.rs      # Properties 1, 4
+├── generator_properties.rs  # Properties 2, 3
+├── logic_properties.rs      # Properties 5-11
+├── shuffle_properties.rs    # Properties 12-14
+├── timer_properties.rs      # Property 15
+├── score_properties.rs      # Property 16
+├── storage_properties.rs    # Properties 17, 18
+└── renderer_properties.rs   # Property 19
+snap/
+├── snapcraft.yaml           # Snap build configuration
+├── gui/
+│   ├── lmahjong.desktop     # Desktop entry
+│   └── icon.png             # Application icon
+└── local/
+    └── launcher.sh          # Interface detection wrapper
+```
+
+## License
+
+MIT
