@@ -201,6 +201,38 @@ fn main() {
                                     game_state.status = GameStatus::NameEntry;
                                 }
                             }
+                        } else if game_state.status == GameStatus::Lost {
+                            // Handle clicks on the "No Moves" dialog buttons
+                            let (win_w, win_h) = renderer.window_size();
+                            let dialog_w: u32 = 320;
+                            let dialog_h: u32 = 220;
+                            let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
+                            let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
+
+                            let btn_w: u32 = 200;
+                            let btn_h: u32 = 44;
+                            let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
+
+                            // Shuffle button: y offset 110 from dialog top
+                            let shuffle_y = dialog_y as i32 + 110;
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= shuffle_y && y < shuffle_y + btn_h as i32
+                            {
+                                // Perform shuffle and return to playing
+                                game_state.status = GameStatus::Playing;
+                                if logic::shuffle(&mut game_state).is_ok() {
+                                    audio.play_shuffle();
+                                }
+                            }
+
+                            // New Game button: y offset 164 from dialog top
+                            let new_game_y = dialog_y as i32 + 164;
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= new_game_y && y < new_game_y + btn_h as i32
+                            {
+                                game_state = create_new_game_state();
+                                game_state.timer.start();
+                            }
                         }
                     }
 
@@ -227,7 +259,12 @@ fn main() {
                     }
 
                     GameAction::Shuffle => {
-                        if game_state.status == GameStatus::Playing {
+                        if game_state.status == GameStatus::Playing
+                            || game_state.status == GameStatus::Lost
+                        {
+                            if game_state.status == GameStatus::Lost {
+                                game_state.status = GameStatus::Playing;
+                            }
                             if logic::shuffle(&mut game_state).is_ok() {
                                 audio.play_shuffle();
                             }
