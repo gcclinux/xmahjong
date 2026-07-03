@@ -57,6 +57,8 @@ pub struct ScoreTracker {
     pub shuffles_used: u32,
     /// Elapsed seconds at game completion (snapshot for scoring).
     pub elapsed_seconds: u32,
+    /// Number of pairs matched so far.
+    pub pairs_matched: u32,
 }
 
 impl ScoreTracker {
@@ -66,14 +68,42 @@ impl ScoreTracker {
             hints_used: 0,
             shuffles_used: 0,
             elapsed_seconds: 0,
+            pairs_matched: 0,
         }
     }
 
-    /// Calculates the final score using the formula:
-    /// `max(0, 1000 - elapsed_seconds - hints_used * 50 - shuffles_used * 100)`
+    /// Calculates the final score.
+    ///
+    /// Score increases with each pair matched:
+    /// - Base: 10 points per pair
+    /// - Streak bonus: pairs_matched * 2 (rewards continuous play)
+    /// - Penalties: -5 per hint used, -10 per shuffle used
+    /// - Time bonus at game completion: max(0, 500 - elapsed_seconds)
+    ///
+    /// During gameplay (elapsed_seconds == 0), only pair/penalty scores are shown.
     pub fn calculate_score(&self) -> u32 {
-        let penalty = self.elapsed_seconds + self.hints_used * 50 + self.shuffles_used * 100;
-        1000u32.saturating_sub(penalty)
+        let base = self.pairs_matched * 10;
+        let streak = self.pairs_matched * 2;
+        let raw = base + streak;
+        let penalty = self.hints_used * 5 + self.shuffles_used * 10;
+        let subtotal = raw.saturating_sub(penalty);
+
+        // Time bonus only applies at game end (when elapsed_seconds is snapshotted)
+        if self.elapsed_seconds > 0 {
+            let time_bonus = 500u32.saturating_sub(self.elapsed_seconds);
+            subtotal + time_bonus
+        } else {
+            subtotal
+        }
+    }
+
+    /// Calculates the live score during gameplay (no time bonus yet).
+    pub fn live_score(&self) -> u32 {
+        let base = self.pairs_matched * 10;
+        let streak = self.pairs_matched * 2;
+        let raw = base + streak;
+        let penalty = self.hints_used * 5 + self.shuffles_used * 10;
+        raw.saturating_sub(penalty)
     }
 }
 
@@ -172,12 +202,16 @@ mod tests {
 
     #[test]
     fn score_perfect_game() {
+        // 72 pairs matched, no penalties, completed in 100 seconds
         let tracker = ScoreTracker {
             hints_used: 0,
             shuffles_used: 0,
-            elapsed_seconds: 0,
+            elapsed_seconds: 100,
+            pairs_matched: 72,
         };
-        assert_eq!(tracker.calculate_score(), 1000);
+        // base: 72*10=720, streak: 72*2=144, penalty: 0, time_bonus: 500-100=400
+        // total: 720+144+400 = 1264
+        assert_eq!(tracker.calculate_score(), 1264);
     }
 
     #[test]
@@ -186,29 +220,47 @@ mod tests {
             hints_used: 2,
             shuffles_used: 1,
             elapsed_seconds: 120,
+            pairs_matched: 72,
         };
-        // 1000 - 120 - 100 - 100 = 680
-        assert_eq!(tracker.calculate_score(), 680);
+        // base: 720, streak: 144, penalty: 2*5+1*10=20, time_bonus: 500-120=380
+        // total: 720+144-20+380 = 1224
+        assert_eq!(tracker.calculate_score(), 1224);
     }
 
     #[test]
     fn score_never_negative() {
         let tracker = ScoreTracker {
-            hints_used: 10,
-            shuffles_used: 10,
+            hints_used: 100,
+            shuffles_used: 100,
             elapsed_seconds: 9999,
+            pairs_matched: 0,
         };
+        // base: 0, streak: 0, penalty: 100*5+100*10=1500 (saturates to 0), time_bonus: 0
         assert_eq!(tracker.calculate_score(), 0);
     }
 
     #[test]
-    fn score_exact_zero() {
+    fn score_starts_at_zero() {
         let tracker = ScoreTracker {
             hints_used: 0,
             shuffles_used: 0,
-            elapsed_seconds: 1000,
+            elapsed_seconds: 0,
+            pairs_matched: 0,
         };
+        // No pairs matched, no time bonus (elapsed_seconds == 0 means in-game)
         assert_eq!(tracker.calculate_score(), 0);
+    }
+
+    #[test]
+    fn score_increases_with_pairs() {
+        let tracker = ScoreTracker {
+            hints_used: 0,
+            shuffles_used: 0,
+            elapsed_seconds: 0,
+            pairs_matched: 5,
+        };
+        // base: 5*10=50, streak: 5*2=10, no time bonus during game
+        assert_eq!(tracker.live_score(), 60);
     }
 
     #[test]

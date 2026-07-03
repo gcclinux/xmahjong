@@ -6,41 +6,81 @@ use lmahjong::game_state::ScoreTracker;
 
 // Feature: lmahjong, Property 16: Score Calculation
 //
-// **Validates: Requirements 8.2**
-//
-// For any combination of elapsed_seconds, hints_used, and shuffles_used,
-// the score matches the formula max(0, 1000 - elapsed_seconds - hints_used * 50 - shuffles_used * 100)
-// and is never negative.
+// Score starts at 0 and increases with each pair matched.
+// Formula:
+//   base = pairs_matched * 10
+//   streak = pairs_matched * 2
+//   penalty = hints_used * 5 + shuffles_used * 10
+//   subtotal = max(0, base + streak - penalty)
+//   time_bonus = max(0, 500 - elapsed_seconds) [only at game end when elapsed_seconds > 0]
+//   final_score = subtotal + time_bonus
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(256))]
 
     #[test]
     fn property_16_score_calculation(
-        elapsed_seconds in 0u32..10000,
+        elapsed_seconds in 0u32..2000,
         hints_used in 0u32..100,
         shuffles_used in 0u32..100,
+        pairs_matched in 0u32..73,
     ) {
         let tracker = ScoreTracker {
             hints_used,
             shuffles_used,
             elapsed_seconds,
+            pairs_matched,
         };
 
         let score = tracker.calculate_score();
 
         // Independently compute expected score using the formula
-        let penalty = elapsed_seconds as u64 + hints_used as u64 * 50 + shuffles_used as u64 * 100;
-        let expected = if penalty >= 1000 { 0u32 } else { 1000 - penalty as u32 };
+        let base = pairs_matched as u64 * 10;
+        let streak = pairs_matched as u64 * 2;
+        let penalty = hints_used as u64 * 5 + shuffles_used as u64 * 10;
+        let subtotal = (base + streak).saturating_sub(penalty) as u32;
 
-        // Assert score matches the formula
+        let time_bonus = if elapsed_seconds > 0 {
+            500u32.saturating_sub(elapsed_seconds)
+        } else {
+            0
+        };
+
+        let expected = subtotal + time_bonus;
+
         prop_assert_eq!(
             score, expected,
-            "Score mismatch for elapsed_seconds={}, hints_used={}, shuffles_used={}: got {}, expected {}",
-            elapsed_seconds, hints_used, shuffles_used, score, expected
+            "Score mismatch for pairs_matched={}, elapsed_seconds={}, hints={}, shuffles={}: got {}, expected {}",
+            pairs_matched, elapsed_seconds, hints_used, shuffles_used, score, expected
         );
 
-        // Assert score is never negative (u32 guarantees this at type level,
-        // but we verify the implementation doesn't panic or wrap)
-        prop_assert!(score <= 1000, "Score {} exceeds maximum of 1000", score);
+        // Score is never negative (u32 type guarantees this)
+        // Score starts at 0 and grows with pairs
+        if pairs_matched == 0 && elapsed_seconds == 0 {
+            prop_assert_eq!(score, 0, "Score should be 0 with no pairs matched during gameplay");
+        }
+    }
+
+    #[test]
+    fn property_16_live_score_increases_with_pairs(
+        pairs_matched in 0u32..73,
+        hints_used in 0u32..10,
+        shuffles_used in 0u32..5,
+    ) {
+        let tracker = ScoreTracker {
+            hints_used,
+            shuffles_used,
+            elapsed_seconds: 0,
+            pairs_matched,
+        };
+
+        let live = tracker.live_score();
+
+        // Live score should equal base + streak - penalty (no time bonus)
+        let base = pairs_matched as u64 * 10;
+        let streak = pairs_matched as u64 * 2;
+        let penalty = hints_used as u64 * 5 + shuffles_used as u64 * 10;
+        let expected = (base + streak).saturating_sub(penalty) as u32;
+
+        prop_assert_eq!(live, expected);
     }
 }

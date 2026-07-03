@@ -95,6 +95,9 @@ pub fn select_tile(state: &mut GameState, pos: usize) -> SelectionResult {
 
         state.board.remove_pair(other, pos);
 
+        // Increment pairs matched for scoring
+        state.score.pairs_matched += 1;
+
         // Push undo entry (cap at 10)
         if state.undo_stack.len() >= 10 {
             state.undo_stack.remove(0);
@@ -132,6 +135,7 @@ pub fn undo(state: &mut GameState) -> Result<(), UndoError> {
     );
 
     state.selection = None;
+    state.score.pairs_matched = state.score.pairs_matched.saturating_sub(1);
 
     Ok(())
 }

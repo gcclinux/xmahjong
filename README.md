@@ -91,23 +91,31 @@ The project includes 19 property-based tests using `proptest` that validate corr
 
 ## Controls
 
-| Action          | Shortcut     |
-|-----------------|--------------|
-| Select tile     | Left click   |
-| New Game        | Ctrl+N       |
-| Undo            | Ctrl+Z       |
-| Hint            | Ctrl+H       |
-| Shuffle         | Ctrl+S       |
-| Toggle Mute     | Ctrl+M       |
-| Pause / Menu    | Escape       |
+| Shortcut | Action |
+|----------|--------|
+| Left click | Select tile |
+| Ctrl+S | Save game |
+| Ctrl+Q | Save + Quit |
+| Ctrl+N | New Game |
+| Ctrl+R | Resume |
+| Ctrl+P | Pause |
+| Ctrl+M | Toggle Mute |
+| Shift+S | Shuffle |
+| Shift+U | Undo |
+| Shift+H | Hint |
+| Escape | Pause / Resume (toggle) |
+| F11 | Toggle Fullscreen |
 
 ## Scoring
 
-```
-Score = max(0, 1000 - elapsed_seconds - hints_used × 50 - shuffles_used × 100)
-```
+Score starts at 0 and increases with each pair matched:
 
-Complete the game fast, with fewer hints and shuffles, for a higher score. Top 10 scores are saved to a local leaderboard.
+- **Base:** +10 points per pair removed
+- **Streak bonus:** +2 per pair (rewards continuous play)
+- **Penalties:** −5 per hint used, −10 per shuffle used
+- **Time bonus** (at game end): max(0, 500 − elapsed_seconds)
+
+Top 10 scores are saved to a local leaderboard.
 
 ## Installing as a Snap
 
@@ -148,6 +156,7 @@ sudo snap connect lmahjong:audio-playback
 
 - **Leaderboard:** `$SNAP_USER_DATA/leaderboard.json` (snap) or `~/.local/share/lmahjong/leaderboard.json`
 - **Settings:** `$SNAP_USER_DATA/settings.json` or `~/.local/share/lmahjong/settings.json`
+- **Saved game:** `$SNAP_USER_DATA/savegame.json` or `~/.local/share/lmahjong/savegame.json`
 
 ## Project Structure
 

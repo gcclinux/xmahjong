@@ -156,6 +156,71 @@ impl Settings {
     }
 }
 
+/// Represents a saved game state that can be resumed later.
+///
+/// Stores only the minimal data needed to reconstruct the game:
+/// board tile face IDs (None for removed), undo stack, timer, and score tracker.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedGame {
+    /// For each of the 144 positions: `Some(face_id)` if a tile is present, `None` if removed.
+    pub tiles: Vec<Option<u8>>,
+    /// Undo stack: each entry records (pos_a, face_a, pos_b, face_b).
+    pub undo_stack: Vec<(usize, u8, usize, u8)>,
+    /// Elapsed time in milliseconds at the time of save.
+    pub elapsed_ms: u64,
+    /// Number of hints used.
+    pub hints_used: u32,
+    /// Number of shuffles used.
+    pub shuffles_used: u32,
+    /// Number of shuffles remaining.
+    pub shuffles_remaining: u8,
+    /// Number of pairs matched so far.
+    pub pairs_matched: u32,
+}
+
+impl SavedGame {
+    /// Loads a saved game from disk. Returns None if no save exists or it's corrupt.
+    pub fn load() -> Option<Self> {
+        let path = storage_dir().join("savegame.json");
+        match fs::read_to_string(&path) {
+            Ok(contents) => serde_json::from_str(&contents).ok(),
+            Err(_) => None,
+        }
+    }
+
+    /// Saves the game state to disk.
+    pub fn save(&self) {
+        let dir = storage_dir();
+        if let Err(e) = fs::create_dir_all(&dir) {
+            eprintln!("lmahjong: failed to create storage directory {:?}: {}", dir, e);
+            return;
+        }
+        let path = dir.join("savegame.json");
+        match serde_json::to_string_pretty(self) {
+            Ok(json) => {
+                if let Err(e) = fs::write(&path, json) {
+                    eprintln!("lmahjong: failed to write savegame to {:?}: {}", path, e);
+                }
+            }
+            Err(e) => {
+                eprintln!("lmahjong: failed to serialize savegame: {}", e);
+            }
+        }
+    }
+
+    /// Deletes the saved game file (e.g., after successfully loading it).
+    pub fn delete() {
+        let path = storage_dir().join("savegame.json");
+        let _ = fs::remove_file(&path);
+    }
+
+    /// Returns true if a saved game file exists on disk.
+    pub fn exists() -> bool {
+        let path = storage_dir().join("savegame.json");
+        path.exists()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

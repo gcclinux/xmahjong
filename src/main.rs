@@ -14,7 +14,7 @@ use lmahjong::generator::BoardGenerator;
 use lmahjong::input::{GameAction, InputHandler};
 use lmahjong::logic::{self, GameOverReason, HintResult, SelectionResult};
 use lmahjong::renderer::{self, Renderer};
-use lmahjong::storage::{Leaderboard, LeaderboardEntry, Settings};
+use lmahjong::storage::{Leaderboard, LeaderboardEntry, SavedGame, Settings};
 use lmahjong::timer::GameTimer;
 
 /// Target frame duration for ~60 FPS (16.67ms per frame).
@@ -47,7 +47,17 @@ fn main() {
     let input_handler = InputHandler::new();
 
     // 6. Generate initial board and create GameState
-    let mut game_state = create_new_game_state();
+    let mut game_state = if SavedGame::exists() {
+        match load_saved_game() {
+            Some(state) => {
+                SavedGame::delete();
+                state
+            }
+            None => create_new_game_state(),
+        }
+    } else {
+        create_new_game_state()
+    };
 
     // Start the timer immediately for the first game
     game_state.timer.start();
@@ -201,6 +211,59 @@ fn main() {
                                     game_state.status = GameStatus::NameEntry;
                                 }
                             }
+                        } else if game_state.status == GameStatus::Paused {
+                            // Handle clicks on pause menu buttons
+                            let (win_w, win_h) = renderer.window_size();
+                            let dialog_w: u32 = 300;
+                            let dialog_h: u32 = 440;
+                            let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
+                            let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
+
+                            let btn_w: u32 = 220;
+                            let btn_h: u32 = 40;
+                            let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
+                            let start_y = dialog_y as i32 + 60;
+                            let spacing: i32 = 50;
+
+                            // Check which button was clicked
+                            if x >= btn_x && x < btn_x + btn_w as i32 {
+                                if y >= start_y && y < start_y + btn_h as i32 {
+                                    // RESUME
+                                    game_state.status = GameStatus::Playing;
+                                    game_state.timer.resume();
+                                } else if y >= start_y + spacing && y < start_y + spacing + btn_h as i32 {
+                                    // NEW GAME
+                                    game_state = create_new_game_state();
+                                    game_state.timer.start();
+                                } else if y >= start_y + spacing * 2 && y < start_y + spacing * 2 + btn_h as i32 {
+                                    // UNDO
+                                    game_state.status = GameStatus::Playing;
+                                    game_state.timer.resume();
+                                    let _ = logic::undo(&mut game_state);
+                                } else if y >= start_y + spacing * 3 && y < start_y + spacing * 3 + btn_h as i32 {
+                                    // HINT
+                                    game_state.status = GameStatus::Playing;
+                                    game_state.timer.resume();
+                                    let result = logic::request_hint(&mut game_state);
+                                    if let HintResult::NoMatchesAvailable = result {
+                                        game_state.status = GameStatus::Lost;
+                                    }
+                                } else if y >= start_y + spacing * 4 && y < start_y + spacing * 4 + btn_h as i32 {
+                                    // SHUFFLE
+                                    game_state.status = GameStatus::Playing;
+                                    game_state.timer.resume();
+                                    if logic::shuffle(&mut game_state).is_ok() {
+                                        audio.play_shuffle();
+                                    }
+                                } else if y >= start_y + spacing * 5 && y < start_y + spacing * 5 + btn_h as i32 {
+                                    // SAVE + QUIT
+                                    save_current_game(&game_state);
+                                    break 'game_loop;
+                                } else if y >= start_y + spacing * 6 && y < start_y + spacing * 6 + btn_h as i32 {
+                                    // QUIT (without saving)
+                                    break 'game_loop;
+                                }
+                            }
                         } else if game_state.status == GameStatus::Lost {
                             // Handle clicks on the "No Moves" dialog buttons
                             let (win_w, win_h) = renderer.window_size();
@@ -282,6 +345,25 @@ fn main() {
                         if game_state.status == GameStatus::Paused {
                             game_state.status = GameStatus::Playing;
                             game_state.timer.resume();
+                        }
+                    }
+
+                    GameAction::Save => {
+                        if game_state.status == GameStatus::Playing
+                            || game_state.status == GameStatus::Paused
+                        {
+                            save_current_game(&game_state);
+                        }
+                    }
+
+                    GameAction::SaveQuit => {
+                        if game_state.status == GameStatus::Playing
+                            || game_state.status == GameStatus::Paused
+                        {
+                            save_current_game(&game_state);
+                            break 'game_loop;
+                        } else {
+                            break 'game_loop;
                         }
                     }
 
@@ -571,4 +653,87 @@ fn days_to_date(days_since_epoch: u64) -> (u32, u32, u32) {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
     (y as u32, m as u32, d as u32)
+}
+
+/// Saves the current game state to disk so it can be resumed later.
+fn save_current_game(state: &GameState) {
+    let tiles: Vec<Option<u8>> = state.board.tiles.iter().map(|t| t.map(|tile| tile.face_id)).collect();
+
+    let undo_stack: Vec<(usize, u8, usize, u8)> = state.undo_stack.iter().map(|entry| {
+        (entry.position_a, entry.tile_a.face_id, entry.position_b, entry.tile_b.face_id)
+    }).collect();
+
+    let saved = SavedGame {
+        tiles,
+        undo_stack,
+        elapsed_ms: state.timer.elapsed_ms
+            + state.timer.last_tick.map(|t| t.elapsed().as_millis() as u64).unwrap_or(0),
+        hints_used: state.score.hints_used,
+        shuffles_used: state.score.shuffles_used,
+        shuffles_remaining: state.shuffles_remaining,
+        pairs_matched: state.score.pairs_matched,
+    };
+
+    saved.save();
+}
+
+/// Loads a saved game from disk and reconstructs the GameState.
+/// Returns None if loading fails.
+fn load_saved_game() -> Option<GameState> {
+    use lmahjong::board::{Board, Tile, turtle_layout};
+    use lmahjong::logic::UndoEntry;
+
+    let saved = SavedGame::load()?;
+    let layout = turtle_layout();
+
+    // Validate tile count matches layout
+    if saved.tiles.len() != layout.positions.len() {
+        eprintln!("[LMahjong] Save file has wrong tile count, ignoring.");
+        return None;
+    }
+
+    // Reconstruct board
+    let mut board = Board::new(layout);
+    for (idx, maybe_face) in saved.tiles.iter().enumerate() {
+        if let Some(face_id) = maybe_face {
+            board.tiles[idx] = Some(Tile {
+                face_id: *face_id,
+                position: layout.positions[idx],
+            });
+        }
+    }
+
+    // Reconstruct undo stack
+    let undo_stack: Vec<UndoEntry> = saved.undo_stack.iter().map(|&(pos_a, face_a, pos_b, face_b)| {
+        UndoEntry {
+            tile_a: Tile { face_id: face_a, position: layout.positions[pos_a] },
+            tile_b: Tile { face_id: face_b, position: layout.positions[pos_b] },
+            position_a: pos_a,
+            position_b: pos_b,
+        }
+    }).collect();
+
+    // Reconstruct timer (paused state, will be resumed on start)
+    let mut timer = GameTimer::new();
+    timer.elapsed_ms = saved.elapsed_ms;
+    // Timer is stopped; it will resume when game loop starts
+
+    let state = GameState {
+        board,
+        timer,
+        score: ScoreTracker {
+            hints_used: saved.hints_used,
+            shuffles_used: saved.shuffles_used,
+            elapsed_seconds: 0, // Only used at game end
+            pairs_matched: saved.pairs_matched,
+        },
+        status: GameStatus::Playing,
+        selection: None,
+        hint: None,
+        undo_stack,
+        shuffles_remaining: saved.shuffles_remaining,
+        animations: Vec::new(),
+    };
+
+    Some(state)
 }

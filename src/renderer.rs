@@ -425,7 +425,6 @@ impl Renderer {
                     // outlives this Vec (dropped after it due to field order).
                     let texture: Texture<'static> = unsafe { std::mem::transmute(texture) };
                     textures.push(Some(texture));
-                    eprintln!("[LMahjong] Loaded tile texture: {}", path);
                 }
                 Err(e) => {
                     textures.push(None);
@@ -444,7 +443,6 @@ impl Renderer {
     fn load_tile_back(_texture_creator: &TextureCreator<WindowContext>) -> bool {
         let path = format!("{}/tiles/tile_back.png", ASSETS_PATH);
         if std::path::Path::new(&path).exists() {
-            eprintln!("[LMahjong] Loaded tile back texture: {}", path);
             true
         } else {
             eprintln!(
@@ -459,7 +457,6 @@ impl Renderer {
     fn load_background(_texture_creator: &TextureCreator<WindowContext>) -> bool {
         let path = format!("{}/background.png", ASSETS_PATH);
         if std::path::Path::new(&path).exists() {
-            eprintln!("[LMahjong] Loaded background texture: {}", path);
             true
         } else {
             eprintln!(
@@ -474,7 +471,6 @@ impl Renderer {
     fn load_ui_textures(_texture_creator: &TextureCreator<WindowContext>) -> UiTextures {
         let ui_path = format!("{}/ui", ASSETS_PATH);
         if std::path::Path::new(&ui_path).exists() {
-            eprintln!("[LMahjong] Loaded UI textures from: {}", ui_path);
             UiTextures { loaded: true }
         } else {
             eprintln!(
@@ -733,6 +729,17 @@ impl Renderer {
         };
         self.canvas.set_draw_color(inner_border_color);
         self.canvas.draw_rect(inner).ok();
+
+        // Draw yellow fog overlay on hinted tiles for high visibility
+        if let TileHighlight::HintGlow(phase) = highlight {
+            let intensity = ((phase * std::f32::consts::PI * 2.0).sin() + 1.0) / 2.0;
+            // Pulsing alpha between 50 and 90 for a visible yellow tint
+            let fog_alpha = (50.0 + intensity * 40.0) as u8;
+            self.canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+            self.canvas.set_draw_color(Color::RGBA(255, 220, 0, fog_alpha));
+            self.canvas.fill_rect(dest).ok();
+            self.canvas.set_blend_mode(sdl2::render::BlendMode::None);
+        }
     }
 
     /// Determines the highlight state for a tile at the given position index.
@@ -1022,14 +1029,6 @@ impl Renderer {
         btn
     }
 
-    /// Draws a placeholder text label area at the given position.
-    /// Without a loaded font, this renders a subtle rectangle where text would appear.
-    fn draw_text_placeholder(&mut self, x: i32, y: i32, width: u32, height: u32, color: Color) {
-        let area = Rect::new(x, y, width, height);
-        self.canvas.set_draw_color(color);
-        self.canvas.fill_rect(area).ok();
-    }
-
     /// Draws text using a simple built-in bitmap font (5×7 pixel characters).
     /// Each character is scaled by `scale` factor. Color is specified by `color`.
     /// This works without any TTF font file.
@@ -1108,9 +1107,9 @@ impl Renderer {
         let timer_text = state.timer.format_display();
         self.draw_bitmap_text(&timer_text, 16, 12, 2, Color::RGB(100, 220, 100));
 
-        // Score display (center)
-        let score = state.score.calculate_score();
-        let score_text = format!("SCORE {}", score);
+        // Score display (center) — live score that goes up with each pair matched
+        let live_score = state.score.live_score();
+        let score_text = format!("SCORE {}", live_score);
         let score_w = score_text.len() as i32 * 12; // 6px * scale 2
         let score_x = (win_w as i32 - score_w) / 2;
         self.draw_bitmap_text(&score_text, score_x, 12, 2, Color::RGB(255, 215, 0));
@@ -1134,12 +1133,12 @@ impl Renderer {
     pub fn render_menu(&mut self) {
         self.draw_overlay_backdrop();
 
-        let dialog = self.draw_dialog_box(300, 380);
+        let dialog = self.draw_dialog_box(300, 440);
 
         // Title
         self.draw_bitmap_text(
-            "MENU",
-            dialog.x() + 120,
+            "PAUSED",
+            dialog.x() + 100,
             dialog.y() + 18,
             3,
             Color::RGB(200, 220, 255),
@@ -1151,23 +1150,35 @@ impl Renderer {
         let start_y = dialog.y() + 60;
         let spacing: i32 = 50;
 
+        // Resume button (bright green)
+        self.draw_labeled_button(btn_x, start_y, btn_w, btn_h, Color::RGB(40, 160, 80), "RESUME");
+
         // New Game button (green)
-        self.draw_labeled_button(btn_x, start_y, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+        self.draw_labeled_button(btn_x, start_y + spacing, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
 
         // Undo button (blue)
-        self.draw_labeled_button(btn_x, start_y + spacing, btn_w, btn_h, Color::RGB(50, 100, 180), "UNDO");
+        self.draw_labeled_button(btn_x, start_y + spacing * 2, btn_w, btn_h, Color::RGB(50, 100, 180), "UNDO");
 
         // Hint button (cyan)
-        self.draw_labeled_button(btn_x, start_y + spacing * 2, btn_w, btn_h, Color::RGB(50, 160, 170), "HINT");
+        self.draw_labeled_button(btn_x, start_y + spacing * 3, btn_w, btn_h, Color::RGB(50, 160, 170), "HINT");
 
         // Shuffle button (purple)
-        self.draw_labeled_button(btn_x, start_y + spacing * 3, btn_w, btn_h, Color::RGB(120, 60, 160), "SHUFFLE");
+        self.draw_labeled_button(btn_x, start_y + spacing * 4, btn_w, btn_h, Color::RGB(120, 60, 160), "SHUFFLE");
 
-        // Mute toggle button (orange)
-        self.draw_labeled_button(btn_x, start_y + spacing * 4, btn_w, btn_h, Color::RGB(200, 130, 50), "MUTE");
+        // Save + Quit button (orange)
+        self.draw_labeled_button(btn_x, start_y + spacing * 5, btn_w, btn_h, Color::RGB(200, 130, 50), "SAVE + QUIT");
 
         // Quit button (red)
-        self.draw_labeled_button(btn_x, start_y + spacing * 5, btn_w, btn_h, Color::RGB(180, 50, 50), "QUIT");
+        self.draw_labeled_button(btn_x, start_y + spacing * 6, btn_w, btn_h, Color::RGB(180, 50, 50), "QUIT");
+
+        // Shortcut hints at bottom
+        self.draw_bitmap_text(
+            "ESC RESUME  CTRL+S SAVE",
+            dialog.x() + 20,
+            dialog.y() + 415,
+            1,
+            Color::RGB(120, 120, 140),
+        );
     }
 
     /// Renders the victory overlay showing final time and score.
@@ -1284,49 +1295,49 @@ impl Renderer {
 
         let dialog = self.draw_dialog_box(400, 280);
 
-        // "High Score!" title placeholder (gold)
-        self.draw_text_placeholder(
-            dialog.x() + 120,
-            dialog.y() + 16,
-            160,
-            32,
-            Color::RGBA(255, 215, 0, 220), // Gold for "HIGH SCORE!"
+        // "HIGH SCORE!" title (gold, large)
+        self.draw_bitmap_text(
+            "HIGH SCORE!",
+            dialog.x() + 112,
+            dialog.y() + 18,
+            3,
+            Color::RGB(255, 215, 0),
         );
 
-        // Score display placeholder
-        let _score_text = format!("Score: {}", score);
-        self.draw_text_placeholder(
+        // Score display
+        let score_text = format!("SCORE  {}", score);
+        self.draw_bitmap_text(
+            &score_text,
             dialog.x() + 130,
-            dialog.y() + 60,
-            140,
-            22,
-            Color::RGBA(255, 200, 50, 180), // Gold for score
+            dialog.y() + 58,
+            2,
+            Color::RGB(255, 200, 50),
         );
 
-        // Time display placeholder
+        // Time display
         let minutes = time_seconds / 60;
         let seconds = time_seconds % 60;
-        let _time_text = format!("Time: {:02}:{:02}", minutes, seconds);
-        self.draw_text_placeholder(
+        let time_text = format!("TIME  {:02}:{:02}", minutes, seconds);
+        self.draw_bitmap_text(
+            &time_text,
             dialog.x() + 130,
-            dialog.y() + 88,
-            140,
-            22,
-            Color::RGBA(100, 200, 100, 180), // Green for time
+            dialog.y() + 82,
+            2,
+            Color::RGB(100, 200, 100),
         );
 
-        // "Enter your name:" label
-        self.draw_text_placeholder(
+        // "ENTER YOUR NAME" label
+        self.draw_bitmap_text(
+            "ENTER YOUR NAME",
             dialog.x() + 40,
-            dialog.y() + 124,
-            160,
-            20,
-            Color::RGBA(200, 200, 220, 180), // Light gray label
+            dialog.y() + 118,
+            2,
+            Color::RGB(200, 200, 220),
         );
 
         // Text input field background
         let input_x = dialog.x() + 40;
-        let input_y = dialog.y() + 150;
+        let input_y = dialog.y() + 148;
         let input_w: u32 = 320;
         let input_h: u32 = 36;
         let input_rect = Rect::new(input_x, input_y, input_w, input_h);
@@ -1339,45 +1350,48 @@ impl Renderer {
         self.canvas.set_draw_color(Color::RGB(100, 160, 220));
         self.canvas.draw_rect(input_rect).ok();
 
-        // Render the typed name text as a colored bar proportional to text length
+        // Render the typed name as bitmap text inside the input field
         if !name.is_empty() {
-            let char_count = name.chars().count() as u32;
-            // Each character is represented as ~14px wide, capped to input width
-            let text_w = (char_count * 14).min(input_w - 8);
-            let text_rect = Rect::new(input_x + 4, input_y + 6, text_w, input_h - 12);
-            self.canvas.set_draw_color(Color::RGBA(220, 220, 240, 220));
-            self.canvas.fill_rect(text_rect).ok();
+            // Convert to uppercase for bitmap font consistency
+            let display_name: String = name.to_uppercase();
+            self.draw_bitmap_text(
+                &display_name,
+                input_x + 6,
+                input_y + 10,
+                2,
+                Color::RGB(220, 220, 240),
+            );
         }
 
-        // Blinking cursor (simple solid bar after text)
-        let cursor_x = input_x + 4 + (name.chars().count() as i32 * 14).min((input_w as i32) - 12);
-        let cursor_rect = Rect::new(cursor_x, input_y + 6, 2, input_h - 12);
-        self.canvas.set_draw_color(Color::RGBA(200, 220, 255, 200));
+        // Blinking cursor (solid bar after text)
+        let char_width = 12i32; // 6px * scale(2) = 12px per char
+        let cursor_x = input_x + 6 + (name.chars().count() as i32 * char_width).min((input_w as i32) - 14);
+        let cursor_rect = Rect::new(cursor_x, input_y + 8, 2, input_h - 16);
+        self.canvas.set_draw_color(Color::RGB(200, 220, 255));
         self.canvas.fill_rect(cursor_rect).ok();
 
-        // Instructions: "Press Enter to submit, Esc to skip"
-        self.draw_text_placeholder(
-            dialog.x() + 60,
-            dialog.y() + 200,
-            280,
-            18,
-            Color::RGBA(140, 140, 160, 150), // Dim gray for instructions
+        // Instructions
+        self.draw_bitmap_text(
+            "ENTER TO SUBMIT  ESC TO SKIP",
+            dialog.x() + 52,
+            dialog.y() + 198,
+            1,
+            Color::RGB(140, 140, 160),
         );
 
-        // Character count indicator
-        let char_count = name.chars().count() as u32;
+        // Character count indicator (e.g., "3/20")
+        let char_count = name.chars().count();
+        let count_text = format!("{}/20", char_count);
         let count_color = if char_count == 0 {
-            Color::RGBA(200, 80, 80, 180) // Red if empty
-        } else if char_count > 20 {
-            Color::RGBA(200, 80, 80, 180) // Red if over limit
+            Color::RGB(200, 80, 80) // Red if empty
         } else {
-            Color::RGBA(100, 200, 100, 180) // Green if valid
+            Color::RGB(100, 200, 100) // Green if valid
         };
-        self.draw_text_placeholder(
+        self.draw_bitmap_text(
+            &count_text,
             dialog.x() + 320,
-            dialog.y() + 230,
-            60,
-            16,
+            dialog.y() + 248,
+            1,
             count_color,
         );
     }
