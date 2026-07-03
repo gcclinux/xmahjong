@@ -33,11 +33,32 @@ const MIN_HEIGHT: u32 = 1080;
 /// Asset base path (relative to executable or Snap package).
 const ASSETS_PATH: &str = "assets";
 
-/// Pixel offset per layer for depth effect (shifts left and up for higher layers).
-const LAYER_OFFSET_PX: i32 = -3;
+/// Base thickness in pixels at 1920×1080 reference resolution.
+#[allow(dead_code)]
+const BASE_THICKNESS_PX: f32 = 7.0;
 
-/// Shadow offset in pixels (drawn below/right of the tile).
-const SHADOW_OFFSET_PX: i32 = 2;
+/// Reference tile_width at 1920×1080 for scaling calculations.
+/// At 1920×1080: tile_width = 1920.0 / 28.0 ≈ 68.57
+#[allow(dead_code)]
+const REFERENCE_TILE_WIDTH: f32 = 1920.0 / 28.0;
+
+/// Brightness factor for the right side face (darker, further from light).
+#[allow(dead_code)]
+const RIGHT_FACE_BRIGHTNESS: f32 = 0.70;
+
+/// Brightness factor for the bottom side face (slightly lighter than right).
+#[allow(dead_code)]
+const BOTTOM_FACE_BRIGHTNESS: f32 = 0.80;
+
+/// Gradient brightness delta across side face width/height.
+#[allow(dead_code)]
+const SIDE_FACE_GRADIENT_DELTA: f32 = 0.07;
+
+/// Base shadow offset in pixels at 1920×1080 resolution.
+const BASE_SHADOW_OFFSET_PX: f32 = 3.0;
+
+/// Shadow alpha value (0-255 scale).
+const SHADOW_ALPHA: u8 = 80;
 
 /// Duration of tile removal animation in milliseconds.
 #[allow(dead_code)]
@@ -124,10 +145,25 @@ pub fn compute_layout_rect(window_width: u32, window_height: u32) -> LayoutMetri
     }
 }
 
+/// Computes the current tile thickness in pixels based on window size.
+///
+/// Thickness scales proportionally to the tile width relative to the reference 1920×1080 resolution.
+/// The result is always at least 1 pixel, even for extremely small windows.
+///
+/// # Arguments
+/// * `metrics` - Precomputed layout scaling metrics for the current window size
+///
+/// # Returns
+/// The thickness in pixels (minimum 1).
+pub fn compute_thickness(metrics: &LayoutMetrics) -> u32 {
+    let raw = BASE_THICKNESS_PX * metrics.tile_width / REFERENCE_TILE_WIDTH;
+    (raw.round() as u32).max(1)
+}
+
 /// Computes the screen rectangle for a tile at the given position using the layout metrics.
 ///
 /// Each tile occupies a 2×2 area in grid space. Higher layers are shifted slightly
-/// up-left to create a depth/stacking effect (LAYER_OFFSET_PX per layer for both X and Y).
+/// up-left to create a depth/stacking effect (thickness per layer for both X and Y).
 ///
 /// # Arguments
 /// * `pos` - The tile's position in grid coordinates (layer, row, col)
@@ -136,7 +172,8 @@ pub fn compute_layout_rect(window_width: u32, window_height: u32) -> LayoutMetri
 /// # Returns
 /// An SDL2 `Rect` representing the tile's screen position and size.
 pub fn tile_screen_rect(pos: &TilePosition, metrics: &LayoutMetrics) -> Rect {
-    let layer_offset = pos.layer as i32 * LAYER_OFFSET_PX;
+    let thickness = compute_thickness(metrics) as i32;
+    let layer_offset = -(pos.layer as i32 * thickness);
 
     let x = metrics.offset_x + (pos.col as f32 * metrics.tile_width) + layer_offset as f32;
     let y = metrics.offset_y + (pos.row as f32 * metrics.tile_height) + layer_offset as f32;
@@ -145,7 +182,7 @@ pub fn tile_screen_rect(pos: &TilePosition, metrics: &LayoutMetrics) -> Rect {
     let w = (2.0 * metrics.tile_width) as u32;
     let h = (2.0 * metrics.tile_height) as u32;
 
-    Rect::new(x as i32, y as i32, w, h)
+    Rect::new(x.floor() as i32, y.floor() as i32, w, h)
 }
 
 /// Given screen coordinates, finds which tile position was clicked.
@@ -525,6 +562,7 @@ impl Renderer {
         // Use the same LayoutMetrics as hit_test for consistent positioning
         let (win_w, win_h) = self.window_size();
         let metrics = compute_layout_rect(win_w, win_h);
+        let thickness = compute_thickness(&metrics);
 
         for (idx, pos) in &tile_entries {
             let tile = state.board.tiles[*idx].unwrap();
@@ -538,38 +576,75 @@ impl Renderer {
             // If shuffle animation is active, skip rendering individual tile effects
             // and instead render with a shuffle visual
             if let Some(progress) = shuffle_progress {
-                self.render_tile_with_shuffle(tile.face_id, dest, pos.layer, progress);
+                self.render_tile_with_shuffle(tile.face_id, dest, pos.layer, progress, thickness, &metrics);
             } else {
-                self.render_tile(tile.face_id, dest, pos.layer, highlight);
+                self.render_tile_3d(tile.face_id, dest, pos.layer, highlight, thickness, &metrics);
             }
         }
     }
 
-    /// Renders a single tile with optional highlight effects and depth shadow.
+    /// Renders a single tile as a 3D block with side faces, shadow, and top face.
     ///
-    /// The tile is drawn with:
-    /// - A shadow rectangle offset below/right for depth perception
-    /// - The tile body (back color + face color)
-    /// - An optional highlight effect (selection border, hint glow, mismatch flash, removal fade)
-    fn render_tile(&mut self, face_id: u8, dest: Rect, layer: u8, highlight: TileHighlight) {
-        // Handle removal fade-out: skip drawing if fully transparent
+    /// Draw order: shadow → corner junction → right side face → bottom side face → top face.
+    /// This ensures the top face content is never occluded by side faces (Requirement 1.7).
+    ///
+    /// # Arguments
+    /// * `face_id` - The tile face texture index
+    /// * `dest` - The top face rectangle (from `tile_screen_rect`)
+    /// * `layer` - The tile's layer (0–4)
+    /// * `highlight` - The current highlight state
+    /// * `thickness` - Pre-computed thickness in pixels
+    /// * `metrics` - Layout metrics for shadow offset scaling
+    fn render_tile_3d(
+        &mut self,
+        face_id: u8,
+        dest: Rect,
+        layer: u8,
+        highlight: TileHighlight,
+        thickness: u32,
+        metrics: &LayoutMetrics,
+    ) {
+        // Early return if fully transparent during removal animation
         if let TileHighlight::Removing(alpha) = highlight {
             if alpha <= 0.0 {
                 return;
             }
         }
 
-        // Draw shadow for depth effect (only for layers > 0)
-        if layer > 0 {
-            let shadow_rect = Rect::new(
-                dest.x() + SHADOW_OFFSET_PX,
-                dest.y() + SHADOW_OFFSET_PX,
-                dest.width(),
-                dest.height(),
-            );
-            self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 80));
-            self.canvas.fill_rect(shadow_rect).ok();
-        }
+        // Compute alpha as u8: 255 normally, or scaled for Removing state
+        let alpha_u8: u8 = if let TileHighlight::Removing(alpha) = highlight {
+            (alpha * 255.0) as u8
+        } else {
+            255
+        };
+
+        // Get highlight-aware base color for side faces
+        let side_base_color = side_face_base_color(&highlight, self.tile_back_color);
+
+        // 1. Draw shadow (behind everything)
+        self.draw_shadow(dest, thickness, layer, metrics, alpha_u8);
+
+        // 2. Draw corner junction (at bottom-right intersection of side faces)
+        self.draw_corner_junction(dest, thickness, side_base_color, alpha_u8);
+
+        // 3. Draw right side face with brightness reduction
+        self.draw_right_side_face(
+            dest,
+            thickness,
+            shade_color(side_base_color, RIGHT_FACE_BRIGHTNESS),
+            alpha_u8,
+        );
+
+        // 4. Draw bottom side face with brightness reduction
+        self.draw_bottom_side_face(
+            dest,
+            thickness,
+            shade_color(side_base_color, BOTTOM_FACE_BRIGHTNESS),
+            alpha_u8,
+        );
+
+        // 5. Draw top face (reuses existing render_tile logic for back color, border,
+        //    texture/placeholder, and inner border)
 
         // Determine tile back color based on highlight
         let (back_color, border_color) = match highlight {
@@ -593,22 +668,20 @@ impl Renderer {
                 Color::RGB(255, 100, 100), // Red flash
                 Color::RGB(200, 0, 0),     // Dark red border
             ),
-            TileHighlight::Removing(alpha) => {
-                // Fade out: reduce color intensity based on alpha
-                let a = (alpha * 255.0) as u8;
+            TileHighlight::Removing(_) => {
                 let back = self.tile_back_color;
                 (
-                    Color::RGBA(back.r, back.g, back.b, a),
-                    Color::RGBA(80, 80, 80, a),
+                    Color::RGBA(back.r, back.g, back.b, alpha_u8),
+                    Color::RGBA(80, 80, 80, alpha_u8),
                 )
             }
         };
 
-        // Draw tile back/body
+        // Draw tile back/body (top face)
         self.canvas.set_draw_color(back_color);
         self.canvas.fill_rect(dest).ok();
 
-        // Draw border (thicker for selected/hint/mismatch)
+        // Draw border
         self.canvas.set_draw_color(border_color);
         self.canvas.draw_rect(dest).ok();
 
@@ -636,19 +709,15 @@ impl Renderer {
 
         if let Some(Some(texture)) = self.tile_textures.get(face_id as usize) {
             // Draw the actual tile texture
-            if let TileHighlight::Removing(alpha) = highlight {
-                let a = (alpha * 255.0) as u8;
-                // We can't set alpha on an immutable texture ref easily,
-                // so just draw it (fade effect handled by back color)
-                let _ = a; // Alpha fade is visual from the back color change
+            if let TileHighlight::Removing(_) = highlight {
+                // Alpha fade is visual from the back color change
             }
             self.canvas.copy(texture, None, inner).ok();
         } else {
             // Fallback to placeholder color
             let face_color = self.placeholders.color_for(face_id);
-            let face_draw_color = if let TileHighlight::Removing(alpha) = highlight {
-                let a = (alpha * 255.0) as u8;
-                Color::RGBA(face_color.r, face_color.g, face_color.b, a)
+            let face_draw_color = if let TileHighlight::Removing(_) = highlight {
+                Color::RGBA(face_color.r, face_color.g, face_color.b, alpha_u8)
             } else {
                 face_color
             };
@@ -656,8 +725,13 @@ impl Renderer {
             self.canvas.fill_rect(inner).ok();
         }
 
-        // Draw inner border
-        self.canvas.set_draw_color(Color::RGB(60, 60, 60));
+        // Draw inner border for depth
+        let inner_border_color = if let TileHighlight::Removing(_) = highlight {
+            Color::RGBA(60, 60, 60, alpha_u8)
+        } else {
+            Color::RGB(60, 60, 60)
+        };
+        self.canvas.set_draw_color(inner_border_color);
         self.canvas.draw_rect(inner).ok();
     }
 
@@ -742,7 +816,16 @@ impl Renderer {
 
     /// Renders a tile during shuffle animation with a visual shuffle effect.
     /// The tile briefly flashes/fades based on shuffle progress.
-    fn render_tile_with_shuffle(&mut self, face_id: u8, dest: Rect, layer: u8, progress: f32) {
+    /// Draws the full 3D tile block (shadow, side faces, top face) with uniform alpha.
+    fn render_tile_with_shuffle(
+        &mut self,
+        face_id: u8,
+        dest: Rect,
+        layer: u8,
+        progress: f32,
+        thickness: u32,
+        metrics: &LayoutMetrics,
+    ) {
         // During shuffle: tiles fade out in first half, fade in with new faces in second half
         let alpha = if progress < 0.5 {
             // Fading out: 1.0 -> 0.0 over first half
@@ -752,21 +835,28 @@ impl Renderer {
             (progress - 0.5) * 2.0
         };
 
-        // Draw shadow for depth
-        if layer > 0 {
-            let shadow_rect = Rect::new(
-                dest.x() + SHADOW_OFFSET_PX,
-                dest.y() + SHADOW_OFFSET_PX,
-                dest.width(),
-                dest.height(),
-            );
-            let shadow_alpha = (80.0 * alpha) as u8;
-            self.canvas.set_draw_color(Color::RGBA(0, 0, 0, shadow_alpha));
-            self.canvas.fill_rect(shadow_rect).ok();
-        }
-
-        // Draw tile with reduced alpha
         let a = (alpha * 255.0) as u8;
+
+        // 1. Draw shadow (layer-aware, scaled offset)
+        self.draw_shadow(dest, thickness, layer, metrics, a);
+
+        // 2. Draw 3D side faces (no highlight during shuffle, use tile_back_color)
+        let side_base = self.tile_back_color;
+        self.draw_corner_junction(dest, thickness, side_base, a);
+        self.draw_right_side_face(
+            dest,
+            thickness,
+            shade_color(side_base, RIGHT_FACE_BRIGHTNESS),
+            a,
+        );
+        self.draw_bottom_side_face(
+            dest,
+            thickness,
+            shade_color(side_base, BOTTOM_FACE_BRIGHTNESS),
+            a,
+        );
+
+        // 3. Draw top face with reduced alpha
         let back = self.tile_back_color;
         self.canvas.set_draw_color(Color::RGBA(back.r, back.g, back.b, a));
         self.canvas.fill_rect(dest).ok();
@@ -1343,6 +1433,208 @@ impl Renderer {
             "NO",
         );
     }
+
+    /// Draws the shadow rectangle for a tile block at the given layer.
+    /// Shadow offset = layer * BASE_SHADOW_OFFSET_PX (scaled to window size).
+    /// Shadow dimensions match the full tile block footprint (top_face + thickness).
+    /// Only draws for layers > 0.
+    fn draw_shadow(&mut self, dest: Rect, thickness: u32, layer: u8, metrics: &LayoutMetrics, alpha: u8) {
+        // Only draw shadow for layers > 0
+        if layer == 0 {
+            return;
+        }
+
+        // Compute shadow offset: layer * BASE_SHADOW_OFFSET_PX * (tile_width / REFERENCE_TILE_WIDTH)
+        let scale = metrics.tile_width / REFERENCE_TILE_WIDTH;
+        let shadow_offset = (layer as f32 * BASE_SHADOW_OFFSET_PX * scale).round() as i32;
+
+        // Shadow dimensions: top face + thickness in both directions
+        let shadow_w = dest.width() + thickness;
+        let shadow_h = dest.height() + thickness;
+
+        // Shadow position: offset from dest (the top face rect)
+        let shadow_rect = Rect::new(
+            dest.x() + shadow_offset,
+            dest.y() + shadow_offset,
+            shadow_w,
+            shadow_h,
+        );
+
+        // Use SHADOW_ALPHA modulated by the passed alpha
+        let final_alpha = ((SHADOW_ALPHA as u16 * alpha as u16) / 255) as u8;
+        self.canvas.set_draw_color(Color::RGBA(0, 0, 0, final_alpha));
+        self.canvas.fill_rect(shadow_rect).ok();
+    }
+
+    /// Draws the corner junction quadrilateral (thickness × thickness square).
+    /// Position: bottom-right corner intersection of the two side faces.
+    /// Uses RIGHT_FACE_BRIGHTNESS for consistent appearance with the right side face.
+    fn draw_corner_junction(&mut self, dest: Rect, thickness: u32, base_color: Color, alpha: u8) {
+        let shaded = shade_color(base_color, RIGHT_FACE_BRIGHTNESS);
+        let color = Color::RGBA(shaded.r, shaded.g, shaded.b, alpha);
+
+        let junction_rect = Rect::new(
+            dest.x() + dest.width() as i32,
+            dest.y() + dest.height() as i32,
+            thickness,
+            thickness,
+        );
+
+        self.canvas.set_draw_color(color);
+        self.canvas.fill_rect(junction_rect).ok();
+
+        // Draw 1px dark border on outer edges
+        let border_color = shade_color(base_color, 0.25);
+        let border = Color::RGBA(border_color.r, border_color.g, border_color.b, alpha);
+        self.canvas.set_draw_color(border);
+        self.canvas.draw_rect(junction_rect).ok();
+    }
+
+    /// Draws the right side face with gradient shading.
+    ///
+    /// Position: vertical strip to the right of the top face (`dest`).
+    /// Width = `thickness`, Height = top face height.
+    /// Gradient: left edge uses `base_color` (already shaded by RIGHT_FACE_BRIGHTNESS),
+    /// right edge is further darkened by SIDE_FACE_GRADIENT_DELTA / RIGHT_FACE_BRIGHTNESS.
+    /// A 1px dark border is drawn on the outer edges (right, top, bottom).
+    ///
+    /// # Arguments
+    /// * `dest` - The top face rectangle (used to compute side face position)
+    /// * `thickness` - Width of the side face in pixels
+    /// * `base_color` - Already-shaded base color (has RIGHT_FACE_BRIGHTNESS applied)
+    /// * `alpha` - Alpha value to apply to all drawn colors (for removal animation)
+    fn draw_right_side_face(
+        &mut self,
+        dest: Rect,
+        thickness: u32,
+        base_color: Color,
+        alpha: u8,
+    ) {
+        if thickness == 0 {
+            return;
+        }
+
+        let face_x = dest.x().saturating_add(dest.width() as i32);
+        let face_y = dest.y();
+        let face_height = dest.height();
+
+        // Draw gradient columns from left (lighter) to right (darker)
+        let max_col = thickness.max(1) - 1;
+        for col in 0..thickness {
+            let factor = if max_col == 0 {
+                1.0_f32
+            } else {
+                1.0 - (col as f32 / max_col as f32)
+                    * (SIDE_FACE_GRADIENT_DELTA / RIGHT_FACE_BRIGHTNESS)
+            };
+
+            let r = (base_color.r as f32 * factor).round().clamp(0.0, 255.0) as u8;
+            let g = (base_color.g as f32 * factor).round().clamp(0.0, 255.0) as u8;
+            let b = (base_color.b as f32 * factor).round().clamp(0.0, 255.0) as u8;
+            self.canvas.set_draw_color(Color::RGBA(r, g, b, alpha));
+
+            let col_rect = Rect::new(
+                face_x.saturating_add(col as i32),
+                face_y,
+                1,
+                face_height,
+            );
+            self.canvas.fill_rect(col_rect).ok();
+        }
+
+        // Draw 1px dark border on outer edges (right, top, bottom)
+        // Border color: shade_color(base_color, 0.25) ensuring luminance ≤ 30% of base
+        let border_color = shade_color(base_color, 0.25);
+        let border_color = Color::RGBA(border_color.r, border_color.g, border_color.b, alpha);
+        self.canvas.set_draw_color(border_color);
+
+        // Right edge (vertical line at x = face_x + thickness - 1)
+        let right_edge_x = face_x.saturating_add(thickness as i32 - 1);
+        let right_line = Rect::new(right_edge_x, face_y, 1, face_height);
+        self.canvas.fill_rect(right_line).ok();
+
+        // Top edge (horizontal line at y = face_y, spanning the side face width)
+        let top_line = Rect::new(face_x, face_y, thickness, 1);
+        self.canvas.fill_rect(top_line).ok();
+
+        // Bottom edge (horizontal line at y = face_y + face_height - 1)
+        let bottom_edge_y = face_y.saturating_add(face_height as i32 - 1);
+        let bottom_line = Rect::new(face_x, bottom_edge_y, thickness, 1);
+        self.canvas.fill_rect(bottom_line).ok();
+    }
+
+    /// Draws the bottom side face with gradient shading.
+    ///
+    /// Position: horizontal strip below the bottom edge of the top face (`dest`).
+    /// Width = top face width, Height = `thickness`.
+    /// Gradient: top edge uses `base_color` (already shaded by BOTTOM_FACE_BRIGHTNESS),
+    /// bottom edge is further darkened by SIDE_FACE_GRADIENT_DELTA / BOTTOM_FACE_BRIGHTNESS.
+    /// A 1px dark border is drawn on the outer edges (bottom, left, right).
+    ///
+    /// # Arguments
+    /// * `dest` - The top face rectangle (used to compute side face position)
+    /// * `thickness` - Height of the side face in pixels
+    /// * `base_color` - Already-shaded base color (has BOTTOM_FACE_BRIGHTNESS applied)
+    /// * `alpha` - Alpha value to apply to all drawn colors (for removal animation)
+    fn draw_bottom_side_face(
+        &mut self,
+        dest: Rect,
+        thickness: u32,
+        base_color: Color,
+        alpha: u8,
+    ) {
+        if thickness == 0 {
+            return;
+        }
+
+        let face_x = dest.x();
+        let face_y = dest.y().saturating_add(dest.height() as i32);
+        let face_width = dest.width();
+
+        // Draw gradient rows from top (lighter) to bottom (darker)
+        let max_row = thickness.max(1) - 1;
+        for row in 0..thickness {
+            let factor = if max_row == 0 {
+                1.0_f32
+            } else {
+                1.0 - (row as f32 / max_row as f32)
+                    * (SIDE_FACE_GRADIENT_DELTA / BOTTOM_FACE_BRIGHTNESS)
+            };
+
+            let r = (base_color.r as f32 * factor).round().clamp(0.0, 255.0) as u8;
+            let g = (base_color.g as f32 * factor).round().clamp(0.0, 255.0) as u8;
+            let b = (base_color.b as f32 * factor).round().clamp(0.0, 255.0) as u8;
+            self.canvas.set_draw_color(Color::RGBA(r, g, b, alpha));
+
+            let row_rect = Rect::new(
+                face_x,
+                face_y.saturating_add(row as i32),
+                face_width,
+                1,
+            );
+            self.canvas.fill_rect(row_rect).ok();
+        }
+
+        // Draw 1px dark border on outer edges (bottom, left, right)
+        // Border color: shade_color(base_color, 0.25) ensuring luminance ≤ 30% of base
+        let border_color = shade_color(base_color, 0.25);
+        let border_color = Color::RGBA(border_color.r, border_color.g, border_color.b, alpha);
+        self.canvas.set_draw_color(border_color);
+
+        // Bottom edge (horizontal line at y = face_y + thickness - 1)
+        let bottom_edge_y = face_y.saturating_add(thickness as i32 - 1);
+        let bottom_line = Rect::new(face_x, bottom_edge_y, face_width, 1);
+        self.canvas.fill_rect(bottom_line).ok();
+
+        // Left edge (vertical line at x = face_x, spanning the side face height)
+        let left_line = Rect::new(face_x, face_y, 1, thickness);
+        self.canvas.fill_rect(left_line).ok();
+
+        // Right edge (vertical line at x = face_x + face_width - 1)
+        let right_edge_x = face_x.saturating_add(face_width as i32 - 1);
+        let right_line = Rect::new(right_edge_x, face_y, 1, thickness);
+        self.canvas.fill_rect(right_line).ok();
+    }
 }
 
 /// Returns a 5×7 bitmap glyph for a given character.
@@ -1427,4 +1719,35 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
         ((g1 + m) * 255.0) as u8,
         ((b1 + m) * 255.0) as u8,
     )
+}
+
+/// Computes the side face color given a base color and a brightness factor.
+/// Applies per-channel scaling: channel * factor, rounded to nearest integer, clamped to [0, 255].
+/// The alpha channel is preserved unchanged.
+pub fn shade_color(color: Color, factor: f32) -> Color {
+    let r = (color.r as f32 * factor).round().clamp(0.0, 255.0) as u8;
+    let g = (color.g as f32 * factor).round().clamp(0.0, 255.0) as u8;
+    let b = (color.b as f32 * factor).round().clamp(0.0, 255.0) as u8;
+    Color::RGBA(r, g, b, color.a)
+}
+
+/// Computes highlight-aware base color for side faces.
+/// Maps TileHighlight → appropriate base color for the side faces.
+/// The returned color is the "raw" base before brightness reduction is applied.
+pub fn side_face_base_color(highlight: &TileHighlight, default_back: Color) -> Color {
+    match highlight {
+        TileHighlight::None => default_back,
+        TileHighlight::Selected => Color::RGB(255, 215, 0), // Gold
+        TileHighlight::HintGlow(phase) => {
+            // Pulsing glow: interpolate between default_back and bright cyan/glow,
+            // matching the top-face highlight logic.
+            let intensity = ((phase * std::f32::consts::PI * 2.0).sin() + 1.0) / 2.0;
+            let r = (default_back.r as f32 + intensity * (255.0 - default_back.r as f32) * 0.1) as u8;
+            let g = (default_back.g as f32 + intensity * (255.0 - default_back.g as f32) * 0.1) as u8;
+            let b = (default_back.b as f32 + intensity * (255.0 - default_back.b as f32) * 0.22) as u8;
+            Color::RGB(r, g, b)
+        }
+        TileHighlight::MismatchFlash => Color::RGB(255, 100, 100), // Red flash
+        TileHighlight::Removing(_) => default_back, // Alpha handled separately
+    }
 }
