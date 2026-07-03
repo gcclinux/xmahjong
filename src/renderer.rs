@@ -30,8 +30,56 @@ const MIN_WIDTH: u32 = 1920;
 /// Minimum window height in pixels.
 const MIN_HEIGHT: u32 = 1080;
 
-/// Asset base path (relative to executable or Snap package).
-const ASSETS_PATH: &str = "assets";
+/// Resolves the assets directory path at runtime.
+/// Checks in order:
+/// 1. `$SNAP/assets` (Snap package)
+/// 2. `./assets` (development / cargo run)
+/// 3. Relative to the executable: `<exe_dir>/assets`
+/// 4. `/usr/share/lmahjong/assets` (system install via .deb/.rpm)
+/// 5. `/usr/local/share/lmahjong/assets` (manual install)
+/// Falls back to "assets" (original behavior) if none found.
+fn assets_path() -> String {
+    // Snap environment
+    if let Ok(snap) = std::env::var("SNAP") {
+        let p = format!("{}/assets", snap);
+        if std::path::Path::new(&p).is_dir() {
+            return p;
+        }
+    }
+
+    // Current working directory
+    if std::path::Path::new("assets").is_dir() {
+        return "assets".to_string();
+    }
+
+    // Relative to executable
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let p = dir.join("assets");
+            if p.is_dir() {
+                return p.to_string_lossy().into_owned();
+            }
+            // Also check ../share/lmahjong/assets (FHS layout: /usr/bin/../share/...)
+            let p = dir.join("../share/lmahjong/assets");
+            if p.is_dir() {
+                return p.canonicalize()
+                    .unwrap_or(p)
+                    .to_string_lossy()
+                    .into_owned();
+            }
+        }
+    }
+
+    // Standard system paths
+    for prefix in &["/usr/share/lmahjong/assets", "/usr/local/share/lmahjong/assets"] {
+        if std::path::Path::new(prefix).is_dir() {
+            return prefix.to_string();
+        }
+    }
+
+    // Fallback
+    "assets".to_string()
+}
 
 /// Base thickness in pixels at 1920×1080 reference resolution.
 #[allow(dead_code)]
@@ -369,11 +417,14 @@ impl Renderer {
         // Create texture creator
         let texture_creator = canvas.texture_creator();
 
+        // Resolve assets directory
+        let base = assets_path();
+
         // Load assets with graceful fallback
-        let tile_textures = Self::load_tile_textures(&texture_creator);
-        let tile_back_loaded = Self::load_tile_back(&texture_creator);
-        let background_loaded = Self::load_background(&texture_creator);
-        let ui_textures = Self::load_ui_textures(&texture_creator);
+        let tile_textures = Self::load_tile_textures(&texture_creator, &base);
+        let tile_back_loaded = Self::load_tile_back(&texture_creator, &base);
+        let background_loaded = Self::load_background(&texture_creator, &base);
+        let ui_textures = Self::load_ui_textures(&texture_creator, &base);
 
         Ok(Self {
             canvas,
@@ -392,7 +443,8 @@ impl Renderer {
     /// Attempts to set the window icon to a Tux image.
     /// Logs a warning if the icon file is not found.
     fn set_window_icon(window: &mut Window) {
-        let icon_path = format!("{}/icon.png", ASSETS_PATH);
+        let base = assets_path();
+        let icon_path = format!("{}/icon.png", base);
         match sdl2::surface::Surface::load_bmp(&icon_path) {
             Ok(icon_surface) => {
                 window.set_icon(&icon_surface);
@@ -414,11 +466,11 @@ impl Renderer {
     ///
     /// SAFETY: The returned textures have their lifetime erased to 'static.
     /// The caller must ensure the TextureCreator outlives these textures.
-    fn load_tile_textures(texture_creator: &TextureCreator<WindowContext>) -> Vec<Option<Texture<'static>>> {
+    fn load_tile_textures(texture_creator: &TextureCreator<WindowContext>, base: &str) -> Vec<Option<Texture<'static>>> {
         let mut textures = Vec::with_capacity(TILE_FACE_COUNT);
 
         for i in 0..TILE_FACE_COUNT {
-            let path = format!("{}/tiles/face_{:02}.png", ASSETS_PATH, i);
+            let path = format!("{}/tiles/face_{:02}.png", base, i);
             match texture_creator.load_texture(&path) {
                 Ok(texture) => {
                     // SAFETY: The texture_creator is stored in the same struct and
@@ -440,8 +492,8 @@ impl Renderer {
     }
 
     /// Attempts to load the tile back texture.
-    fn load_tile_back(_texture_creator: &TextureCreator<WindowContext>) -> bool {
-        let path = format!("{}/tiles/tile_back.png", ASSETS_PATH);
+    fn load_tile_back(_texture_creator: &TextureCreator<WindowContext>, base: &str) -> bool {
+        let path = format!("{}/tiles/tile_back.png", base);
         if std::path::Path::new(&path).exists() {
             true
         } else {
@@ -454,8 +506,8 @@ impl Renderer {
     }
 
     /// Attempts to load the background texture.
-    fn load_background(_texture_creator: &TextureCreator<WindowContext>) -> bool {
-        let path = format!("{}/background.png", ASSETS_PATH);
+    fn load_background(_texture_creator: &TextureCreator<WindowContext>, base: &str) -> bool {
+        let path = format!("{}/background.png", base);
         if std::path::Path::new(&path).exists() {
             true
         } else {
@@ -468,8 +520,8 @@ impl Renderer {
     }
 
     /// Attempts to load UI textures (buttons, overlays).
-    fn load_ui_textures(_texture_creator: &TextureCreator<WindowContext>) -> UiTextures {
-        let ui_path = format!("{}/ui", ASSETS_PATH);
+    fn load_ui_textures(_texture_creator: &TextureCreator<WindowContext>, base: &str) -> UiTextures {
+        let ui_path = format!("{}/ui", base);
         if std::path::Path::new(&ui_path).exists() {
             UiTextures { loaded: true }
         } else {
@@ -946,7 +998,8 @@ impl Renderer {
     /// Loads a font from the assets directory at the given point size.
     /// Returns None if the font file is not found.
     pub fn load_font(&self, point_size: u16) -> Option<sdl2::ttf::Font<'_, 'static>> {
-        let font_path = format!("{}/fonts/default.ttf", ASSETS_PATH);
+        let base = assets_path();
+        let font_path = format!("{}/fonts/default.ttf", base);
         match self.ttf_context.load_font(&font_path, point_size) {
             Ok(font) => Some(font),
             Err(e) => {

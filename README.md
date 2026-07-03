@@ -148,6 +148,51 @@ sudo snap connect lmahjong:opengl
 sudo snap connect lmahjong:audio-playback
 ```
 
+## Packaging (.deb, .rpm, AppImage)
+
+A packaging script is included to create distribution packages:
+
+```bash
+# Build all three formats
+./package.sh all
+
+# Or build individually
+./package.sh deb
+./package.sh rpm
+./package.sh appimage
+```
+
+Output goes to `target/package/`.
+
+### Prerequisites for packaging
+
+| Format | Tool needed | Install with |
+|--------|-------------|--------------|
+| .deb | dpkg-deb | Pre-installed on Debian/Ubuntu |
+| .rpm | rpmbuild | `sudo dnf install rpm-build` |
+| AppImage | wget | Pre-installed on most distros (downloads appimagetool automatically) |
+
+### Installing the packages
+
+**.deb (Ubuntu/Debian):**
+```bash
+sudo apt install ./target/package/lmahjong_0.1.0_amd64.deb
+```
+This automatically installs SDL2 runtime dependencies via apt.
+
+**.rpm (Fedora/RHEL):**
+```bash
+sudo dnf install ./target/package/lmahjong-0.1.0-1.x86_64.rpm
+```
+This automatically installs SDL2 runtime dependencies via dnf.
+
+**AppImage (any distro):**
+```bash
+chmod +x target/package/lmahjong-0.1.0-x86_64.AppImage
+./target/package/lmahjong-0.1.0-x86_64.AppImage
+```
+AppImages bundle SDL2 libraries inside, so no system dependencies are needed.
+
 ## Assets
 
 ![Tux Penguin Sprite Sheet](sprite/tux-sprite-lmahjong.png)
