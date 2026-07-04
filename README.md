@@ -61,6 +61,12 @@ cargo build
 cargo build --release
 ```
 
+**macOS (requires Homebrew SDL2 libraries):**
+```bash
+brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf pkg-config
+LIBRARY_PATH="/opt/homebrew/lib" cargo build --release
+```
+
 The binary is output to `target/debug/lmahjong` or `target/release/lmahjong`.
 
 ## Running
@@ -163,6 +169,19 @@ chmod +x target/package/lmahjong-0.1.0-x86_64.AppImage
 ./target/package/lmahjong-0.1.0-x86_64.AppImage
 ```
 AppImages bundle SDL2 libraries inside, so no system dependencies are needed.
+
+**macOS (.app bundle):**
+```bash
+cp -R LMahjong-0.1.0-aarch64.app /Applications/
+open /Applications/LMahjong-0.1.0-aarch64.app
+```
+Copy the `.app` to your Applications folder and launch it. The app bundle includes all SDL2 libraries — no Homebrew or other dependencies required.
+
+**macOS (.dmg disk image):**
+```bash
+open LMahjong-0.1.0-arm64.dmg
+```
+Double-click the `.dmg` to mount it, then drag `LMahjong.app` into the Applications folder. No additional dependencies are needed.
 
 ## Assets
 

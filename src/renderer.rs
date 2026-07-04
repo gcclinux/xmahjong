@@ -20,22 +20,46 @@ use crate::storage::Leaderboard;
 const TILE_FACE_COUNT: usize = 50;
 
 /// Default window width in pixels.
+#[cfg(target_os = "macos")]
+const DEFAULT_WIDTH: u32 = 1900;
+
+/// Default window width in pixels.
+#[cfg(not(target_os = "macos"))]
 const DEFAULT_WIDTH: u32 = 1920;
 
 /// Default window height in pixels.
+#[cfg(target_os = "macos")]
+const DEFAULT_HEIGHT: u32 = 900;
+
+/// Default window height in pixels.
+#[cfg(not(target_os = "macos"))]
 const DEFAULT_HEIGHT: u32 = 1080;
 
 /// Minimum window width in pixels.
+#[cfg(target_os = "macos")]
+const MIN_WIDTH: u32 = 800;
+
+/// Minimum window width in pixels.
+#[cfg(not(target_os = "macos"))]
 const MIN_WIDTH: u32 = 1920;
 
 /// Minimum window height in pixels.
+#[cfg(target_os = "macos")]
+const MIN_HEIGHT: u32 = 600;
+
+/// Minimum window height in pixels.
+#[cfg(not(target_os = "macos"))]
 const MIN_HEIGHT: u32 = 1080;
 
 /// Resolves the assets directory path at runtime.
 /// Checks in order:
 /// 1. `$SNAP/assets` (Snap package)
 /// 2. `./assets` (development / cargo run)
-/// 3. Relative to the executable: `<exe_dir>/assets`
+/// 3. Relative to the executable:
+///    a. `<exe_dir>/assets`
+///    b. `<exe_dir>/../../assets` (cargo target/debug or target/release)
+///    c. `<exe_dir>/../Resources/assets` (macOS .app bundle)
+///    d. `<exe_dir>/../share/lmahjong/assets` (FHS layout)
 /// 4. `/usr/share/lmahjong/assets` (system install via .deb/.rpm)
 /// 5. `/usr/local/share/lmahjong/assets` (manual install)
 /// Falls back to "assets" (original behavior) if none found.
@@ -62,6 +86,14 @@ fn assets_path() -> String {
             }
             // Check ../../assets (covers target/debug/ or target/release/ → project root)
             let p = dir.join("../../assets");
+            if p.is_dir() {
+                return p.canonicalize()
+                    .unwrap_or(p)
+                    .to_string_lossy()
+                    .into_owned();
+            }
+            // macOS .app bundle: Contents/MacOS/../Resources/assets
+            let p = dir.join("../Resources/assets");
             if p.is_dir() {
                 return p.canonicalize()
                     .unwrap_or(p)
@@ -160,10 +192,14 @@ pub struct LayoutMetrics {
     pub layout_h: f32,
 }
 
+/// Height of the HUD bar in pixels (timer, score, shuffle display).
+const HUD_BAR_HEIGHT: u32 = 40;
+
 /// Computes the layout rectangle that fits within the window while maintaining aspect ratio.
 ///
 /// The layout is scaled to be as large as possible without exceeding the window bounds,
 /// then centered. Margins are filled with the background.
+/// On macOS, the layout is shifted down to avoid overlapping the HUD bar.
 ///
 /// # Arguments
 /// * `window_width` - Current window width in pixels
@@ -173,11 +209,18 @@ pub struct LayoutMetrics {
 /// A `LayoutMetrics` struct containing offset, scale, and dimension information.
 pub fn compute_layout_rect(window_width: u32, window_height: u32) -> LayoutMetrics {
     let aspect_ratio = LAYOUT_GRID_WIDTH / LAYOUT_GRID_HEIGHT;
-    let window_aspect = window_width as f32 / window_height as f32;
+
+    // On macOS, reserve space for the HUD bar at the top
+    #[cfg(target_os = "macos")]
+    let available_height = window_height.saturating_sub(HUD_BAR_HEIGHT);
+    #[cfg(not(target_os = "macos"))]
+    let available_height = window_height;
+
+    let window_aspect = window_width as f32 / available_height as f32;
 
     let (layout_w, layout_h) = if window_aspect > aspect_ratio {
         // Window is wider than layout — height-constrained
-        let h = window_height as f32;
+        let h = available_height as f32;
         let w = h * aspect_ratio;
         (w, h)
     } else {
@@ -188,7 +231,13 @@ pub fn compute_layout_rect(window_width: u32, window_height: u32) -> LayoutMetri
     };
 
     let offset_x = (window_width as f32 - layout_w) / 2.0;
+
+    // On macOS, position layout below the HUD bar; on Linux, center vertically
+    #[cfg(target_os = "macos")]
+    let offset_y = HUD_BAR_HEIGHT as f32 + (available_height as f32 - layout_h) / 2.0;
+    #[cfg(not(target_os = "macos"))]
     let offset_y = (window_height as f32 - layout_h) / 2.0;
+
     let tile_width = layout_w / LAYOUT_GRID_WIDTH;
     let tile_height = layout_h / LAYOUT_GRID_HEIGHT;
 
@@ -379,19 +428,29 @@ impl Renderer {
         // Initialize video subsystem
         let video_subsystem = sdl_context.video()?;
 
-        // Detect screen resolution and adjust window size if needed
+        // Detect screen area and adjust window size
         let (initial_width, initial_height, min_width, min_height) = {
-            let display_mode = video_subsystem.desktop_display_mode(0)
-                .unwrap_or(sdl2::video::DisplayMode::new(
-                    sdl2::pixels::PixelFormatEnum::Unknown, 
-                    DEFAULT_WIDTH as i32, 
-                    DEFAULT_HEIGHT as i32, 
-                    60
-                ));
-            let screen_w = display_mode.w as u32;
-            let screen_h = display_mode.h as u32;
+            #[cfg(target_os = "macos")]
+            let (screen_w, screen_h) = {
+                // On macOS, use usable bounds (excludes menu bar and dock)
+                let usable = video_subsystem.display_usable_bounds(0)
+                    .unwrap_or(sdl2::rect::Rect::new(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT));
+                (usable.width(), usable.height())
+            };
 
-            // Use desired size or screen resolution, whichever is smaller
+            #[cfg(not(target_os = "macos"))]
+            let (screen_w, screen_h) = {
+                let display_mode = video_subsystem.desktop_display_mode(0)
+                    .unwrap_or(sdl2::video::DisplayMode::new(
+                        sdl2::pixels::PixelFormatEnum::Unknown,
+                        DEFAULT_WIDTH as i32,
+                        DEFAULT_HEIGHT as i32,
+                        60
+                    ));
+                (display_mode.w as u32, display_mode.h as u32)
+            };
+
+            // Use desired size or available screen area, whichever is smaller
             let w = DEFAULT_WIDTH.min(screen_w);
             let h = DEFAULT_HEIGHT.min(screen_h);
             let mw = MIN_WIDTH.min(screen_w);

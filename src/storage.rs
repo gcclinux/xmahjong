@@ -8,7 +8,9 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Returns the storage directory path.
-/// Checks `$SNAP_USER_DATA` first, falls back to `~/.local/share/lmahjong/`.
+/// Checks `$SNAP_USER_DATA` first, then uses the platform-appropriate location:
+/// - macOS: `~/Library/Application Support/lmahjong/`
+/// - Linux: `~/.local/share/lmahjong/`
 fn storage_dir() -> PathBuf {
     if let Ok(snap_dir) = std::env::var("SNAP_USER_DATA") {
         PathBuf::from(snap_dir)
@@ -17,13 +19,23 @@ fn storage_dir() -> PathBuf {
     }
 }
 
-/// Fallback storage directory: ~/.local/share/lmahjong/
+/// Platform-appropriate storage directory.
+/// - macOS: `~/Library/Application Support/lmahjong/`
+/// - Linux/other: `~/.local/share/lmahjong/`
 fn dirs_fallback() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home)
-        .join(".local")
-        .join("share")
-        .join("lmahjong")
+
+    if cfg!(target_os = "macos") {
+        PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("lmahjong")
+    } else {
+        PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("lmahjong")
+    }
 }
 
 /// A single leaderboard entry recording a completed game.
