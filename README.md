@@ -6,6 +6,8 @@ A Tux-themed Mahjong solitaire game for Linux, built with Rust and SDL2.
 
 LMahjong is a classic tile-matching solitaire game featuring Tux penguin-themed graphics. Clear all 144 tiles from the board by matching pairs of free tiles. The game uses the traditional Turtle layout with 5 stacked layers, and every generated board is guaranteed to be solvable.
 
+![Initial board](assets/initial-board.png)
+
 ### Features
 
 - Classic Turtle layout with 144 tiles across 5 layers
