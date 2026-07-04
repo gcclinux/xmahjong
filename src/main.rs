@@ -194,21 +194,38 @@ fn main() {
                 match action {
                     GameAction::SelectTile(x, y) => {
                         if game_state.status == GameStatus::Playing {
-                            let won = handle_select_tile(
-                                &mut game_state,
-                                &mut audio,
-                                &renderer,
-                                x,
-                                y,
-                            );
-                            if won {
-                                // Check if score qualifies for leaderboard
-                                let score = game_state.score.calculate_score();
-                                let leaderboard = Leaderboard::load();
-                                if leaderboard.qualifies(score) {
-                                    let time_seconds = game_state.score.elapsed_seconds;
-                                    name_entry = Some(NameEntryState::new(score, time_seconds));
-                                    game_state.status = GameStatus::NameEntry;
+                            // Check if click is on the HUD shuffle area (top-right)
+                            let (win_w, _win_h) = renderer.window_size();
+                            let shuffle_text = format!("SHUFFLE {}", game_state.shuffles_remaining);
+                            let shuffle_w = shuffle_text.len() as i32 * 12;
+                            let shuffle_x = win_w as i32 - shuffle_w - 16;
+                            if y >= 0 && y < 40 && x >= shuffle_x && x < win_w as i32 {
+                                // Clicked on shuffle in HUD
+                                match logic::shuffle(&mut game_state) {
+                                    Ok(()) => {
+                                        audio.play_shuffle();
+                                    }
+                                    Err(_) => {
+                                        audio.play_error();
+                                    }
+                                }
+                            } else {
+                                let won = handle_select_tile(
+                                    &mut game_state,
+                                    &mut audio,
+                                    &renderer,
+                                    x,
+                                    y,
+                                );
+                                if won {
+                                    // Check if score qualifies for leaderboard
+                                    let score = game_state.score.calculate_score();
+                                    let leaderboard = Leaderboard::load();
+                                    if leaderboard.qualifies(score) {
+                                        let time_seconds = game_state.score.elapsed_seconds;
+                                        name_entry = Some(NameEntryState::new(score, time_seconds));
+                                        game_state.status = GameStatus::NameEntry;
+                                    }
                                 }
                             }
                         } else if game_state.status == GameStatus::Paused {
@@ -296,6 +313,54 @@ fn main() {
                                 game_state = create_new_game_state();
                                 game_state.timer.start();
                             }
+                        } else if game_state.status == GameStatus::Won {
+                            // Handle clicks on Victory dialog buttons
+                            let (win_w, win_h) = renderer.window_size();
+                            let dialog_w: u32 = 350;
+                            let dialog_h: u32 = 300;
+                            let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
+                            let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
+
+                            let btn_w: u32 = 220;
+                            let btn_h: u32 = 44;
+                            let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
+
+                            // New Game button: y offset 160
+                            let new_game_y = dialog_y as i32 + 160;
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= new_game_y && y < new_game_y + btn_h as i32
+                            {
+                                game_state = create_new_game_state();
+                                game_state.timer.start();
+                            }
+
+                            // Leaderboard button: y offset 220
+                            let lb_y = dialog_y as i32 + 220;
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= lb_y && y < lb_y + btn_h as i32
+                            {
+                                game_state.status = GameStatus::Leaderboard;
+                            }
+                        } else if game_state.status == GameStatus::Leaderboard {
+                            // Handle clicks on Leaderboard dialog (Back button)
+                            let (win_w, win_h) = renderer.window_size();
+                            let leaderboard = Leaderboard::load();
+                            let entry_count = leaderboard.entries.len();
+                            let dialog_h: u32 = 100 + (entry_count.max(1) as u32 * 28) + 70;
+                            let dialog_w: u32 = 500;
+                            let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
+                            let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
+
+                            let btn_w: u32 = 180;
+                            let btn_h: u32 = 40;
+                            let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
+                            let btn_y = dialog_y as i32 + dialog_h as i32 - 55;
+
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= btn_y && y < btn_y + btn_h as i32
+                            {
+                                game_state.status = GameStatus::Won;
+                            }
                         }
                     }
 
@@ -328,8 +393,18 @@ fn main() {
                             if game_state.status == GameStatus::Lost {
                                 game_state.status = GameStatus::Playing;
                             }
-                            if logic::shuffle(&mut game_state).is_ok() {
-                                audio.play_shuffle();
+                            match logic::shuffle(&mut game_state) {
+                                Ok(()) => {
+                                    audio.play_shuffle();
+                                }
+                                Err(logic::ShuffleError::NoShufflesRemaining) => {
+                                    // Play error sound to indicate no shuffles left
+                                    audio.play_error();
+                                }
+                                Err(logic::ShuffleError::NoValidArrangement) => {
+                                    // Extremely rare: couldn't find a valid arrangement
+                                    audio.play_error();
+                                }
                             }
                         }
                     }
@@ -444,6 +519,10 @@ fn main() {
                 if let Some(ref entry) = name_entry {
                     renderer.render_name_entry(&entry.text, entry.score, entry.time_seconds);
                 }
+            }
+            GameStatus::Leaderboard => {
+                renderer.render_board(&game_state, layout_rect);
+                renderer.render_leaderboard();
             }
         }
 

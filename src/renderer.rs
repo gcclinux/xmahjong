@@ -5,7 +5,7 @@
 
 use std::time::Instant;
 
-use sdl2::image::LoadTexture;
+use sdl2::image::{LoadTexture, LoadSurface};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, Texture, TextureCreator};
@@ -14,6 +14,7 @@ use sdl2::video::{Window, WindowContext};
 
 use crate::board::TilePosition;
 use crate::game_state::{Animation, GameState};
+use crate::storage::Leaderboard;
 
 /// Number of distinct tile face images.
 const TILE_FACE_COUNT: usize = 50;
@@ -58,6 +59,14 @@ fn assets_path() -> String {
             let p = dir.join("assets");
             if p.is_dir() {
                 return p.to_string_lossy().into_owned();
+            }
+            // Check ../../assets (covers target/debug/ or target/release/ → project root)
+            let p = dir.join("../../assets");
+            if p.is_dir() {
+                return p.canonicalize()
+                    .unwrap_or(p)
+                    .to_string_lossy()
+                    .into_owned();
             }
             // Also check ../share/lmahjong/assets (FHS layout: /usr/bin/../share/...)
             let p = dir.join("../share/lmahjong/assets");
@@ -331,6 +340,9 @@ pub struct Renderer {
     /// Loaded tile face textures (None if the asset file was missing).
     /// SAFETY: These textures reference texture_creator and must be dropped first.
     pub tile_textures: Vec<Option<Texture<'static>>>,
+    /// Background texture (None if not loaded).
+    /// SAFETY: References texture_creator, must be dropped before it.
+    pub background_texture: Option<Texture<'static>>,
     /// Texture creator bound to the window context (for creating textures at runtime).
     pub texture_creator: TextureCreator<WindowContext>,
     /// Whether the tile back texture was loaded.
@@ -423,7 +435,7 @@ impl Renderer {
         // Load assets with graceful fallback
         let tile_textures = Self::load_tile_textures(&texture_creator, &base);
         let tile_back_loaded = Self::load_tile_back(&texture_creator, &base);
-        let background_loaded = Self::load_background(&texture_creator, &base);
+        let (background_loaded, background_texture) = Self::load_background(&texture_creator, &base);
         let ui_textures = Self::load_ui_textures(&texture_creator, &base);
 
         Ok(Self {
@@ -431,6 +443,7 @@ impl Renderer {
             texture_creator,
             ttf_context,
             tile_textures,
+            background_texture,
             tile_back_loaded,
             background_loaded,
             ui_textures,
@@ -445,13 +458,11 @@ impl Renderer {
     fn set_window_icon(window: &mut Window) {
         let base = assets_path();
         let icon_path = format!("{}/icon.png", base);
-        match sdl2::surface::Surface::load_bmp(&icon_path) {
+        match sdl2::surface::Surface::from_file(&icon_path) {
             Ok(icon_surface) => {
                 window.set_icon(&icon_surface);
             }
             Err(_) => {
-                // Try PNG via SDL2_image if BMP fails
-                // For now, just log the warning
                 eprintln!(
                     "[LMahjong] Warning: Window icon not found at '{}'. Using default icon.",
                     icon_path
@@ -506,16 +517,20 @@ impl Renderer {
     }
 
     /// Attempts to load the background texture.
-    fn load_background(_texture_creator: &TextureCreator<WindowContext>, base: &str) -> bool {
+    fn load_background(texture_creator: &TextureCreator<WindowContext>, base: &str) -> (bool, Option<Texture<'static>>) {
         let path = format!("{}/background.png", base);
-        if std::path::Path::new(&path).exists() {
-            true
-        } else {
-            eprintln!(
-                "[LMahjong] Warning: Background texture not found: '{}'. Using solid color.",
-                path
-            );
-            false
+        match texture_creator.load_texture(&path) {
+            Ok(texture) => {
+                let texture: Texture<'static> = unsafe { std::mem::transmute(texture) };
+                (true, Some(texture))
+            }
+            Err(_) => {
+                eprintln!(
+                    "[LMahjong] Warning: Background texture not found: '{}'. Using solid color.",
+                    path
+                );
+                (false, None)
+            }
         }
     }
 
@@ -538,10 +553,16 @@ impl Renderer {
         self.canvas.output_size().unwrap_or((DEFAULT_WIDTH, DEFAULT_HEIGHT))
     }
 
-    /// Clears the canvas with the background color.
+    /// Clears the canvas with the background color or texture.
     pub fn clear(&mut self) {
         self.canvas.set_draw_color(self.background_color);
         self.canvas.clear();
+        // Draw background texture stretched to fill the window
+        if let Some(ref texture) = self.background_texture {
+            let (w, h) = self.window_size();
+            let dest = Rect::new(0, 0, w, h);
+            self.canvas.copy(texture, None, dest).ok();
+        }
     }
 
     /// Presents the rendered frame to the screen.
@@ -789,6 +810,14 @@ impl Renderer {
             let fog_alpha = (50.0 + intensity * 40.0) as u8;
             self.canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
             self.canvas.set_draw_color(Color::RGBA(255, 220, 0, fog_alpha));
+            self.canvas.fill_rect(dest).ok();
+            self.canvas.set_blend_mode(sdl2::render::BlendMode::None);
+        }
+
+        // Draw yellow fog overlay on selected tile for visibility
+        if let TileHighlight::Selected = highlight {
+            self.canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+            self.canvas.set_draw_color(Color::RGBA(255, 220, 0, 70));
             self.canvas.fill_rect(dest).ok();
             self.canvas.set_blend_mode(sdl2::render::BlendMode::None);
         }
@@ -1289,6 +1318,84 @@ impl Renderer {
 
         // Leaderboard button (blue)
         self.draw_labeled_button(btn_x, dialog.y() + 220, btn_w, btn_h, Color::RGB(50, 100, 180), "LEADERBOARD");
+    }
+
+    /// Renders the leaderboard view showing the top 10 scores.
+    pub fn render_leaderboard(&mut self) {
+        self.draw_overlay_backdrop();
+
+        let leaderboard = Leaderboard::load();
+        let entry_count = leaderboard.entries.len();
+
+        // Dialog sized to fit header + up to 10 entries + back button
+        let dialog_h: u32 = 100 + (entry_count.max(1) as u32 * 28) + 70;
+        let dialog = self.draw_dialog_box(500, dialog_h);
+
+        // Title
+        self.draw_bitmap_text(
+            "LEADERBOARD",
+            dialog.x() + 150,
+            dialog.y() + 20,
+            3,
+            Color::RGB(255, 215, 0),
+        );
+
+        // Column headers
+        self.draw_bitmap_text(
+            "#  NAME             SCORE  TIME",
+            dialog.x() + 20,
+            dialog.y() + 65,
+            1,
+            Color::RGB(150, 150, 150),
+        );
+
+        if entry_count == 0 {
+            self.draw_bitmap_text(
+                "NO SCORES YET",
+                dialog.x() + 160,
+                dialog.y() + 100,
+                2,
+                Color::RGB(120, 120, 120),
+            );
+        } else {
+            for (i, entry) in leaderboard.entries.iter().enumerate() {
+                let y = dialog.y() + 90 + (i as i32 * 28);
+
+                // Truncate name to 16 chars for display
+                let name_display: String = entry.name.chars().take(16).collect();
+                let name_padded = format!("{:<16}", name_display);
+
+                let minutes = entry.time_seconds / 60;
+                let seconds = entry.time_seconds % 60;
+                let line = format!(
+                    "{:<2} {}  {:>5}  {:02}:{:02}",
+                    i + 1,
+                    name_padded,
+                    entry.score,
+                    minutes,
+                    seconds,
+                );
+
+                let color = if i == 0 {
+                    Color::RGB(255, 215, 0)  // Gold for 1st
+                } else if i == 1 {
+                    Color::RGB(192, 192, 192) // Silver for 2nd
+                } else if i == 2 {
+                    Color::RGB(205, 127, 50)  // Bronze for 3rd
+                } else {
+                    Color::RGB(200, 200, 200) // White for rest
+                };
+
+                self.draw_bitmap_text(&line, dialog.x() + 20, y, 2, color);
+            }
+        }
+
+        // Back button
+        let btn_w: u32 = 180;
+        let btn_h: u32 = 40;
+        let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
+        let btn_y = dialog.y() + dialog_h as i32 - 55;
+        self.draw_labeled_button(btn_x, btn_y, btn_w, btn_h, Color::RGB(100, 100, 100), "BACK");
     }
 
     /// Renders the no-moves notification with options to shuffle or start a new game.

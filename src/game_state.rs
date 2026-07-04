@@ -46,6 +46,8 @@ pub enum GameStatus {
     Menu,
     /// Player is entering their name for the leaderboard.
     NameEntry,
+    /// Leaderboard view is displayed.
+    Leaderboard,
 }
 
 /// Tracks score-relevant statistics for the current game.

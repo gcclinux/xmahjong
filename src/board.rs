@@ -248,51 +248,53 @@ pub static TURTLE_POSITIONS: &[TilePosition] = &[
     TilePosition { layer: 0, row: 12, col: 20 },
 
     // =========================================================================
-    // Layer 1: 36 tiles - centered rectangle on top of layer 0
+    // Layer 1: 36 tiles - centered rectangle, shifted +1 row/col (half-tile
+    // pyramid offset so each layer straddles the tiles below like bricks)
     // =========================================================================
-    // Row 2: 10 tiles
-    TilePosition { layer: 1, row: 2, col: 4 },
-    TilePosition { layer: 1, row: 2, col: 6 },
-    TilePosition { layer: 1, row: 2, col: 8 },
-    TilePosition { layer: 1, row: 2, col: 10 },
-    TilePosition { layer: 1, row: 2, col: 12 },
-    TilePosition { layer: 1, row: 2, col: 14 },
-    TilePosition { layer: 1, row: 2, col: 16 },
-    TilePosition { layer: 1, row: 2, col: 18 },
-    TilePosition { layer: 1, row: 2, col: 20 },
-    TilePosition { layer: 1, row: 2, col: 22 },
-    // Row 4: 10 tiles
-    TilePosition { layer: 1, row: 4, col: 4 },
-    TilePosition { layer: 1, row: 4, col: 6 },
-    TilePosition { layer: 1, row: 4, col: 8 },
-    TilePosition { layer: 1, row: 4, col: 10 },
-    TilePosition { layer: 1, row: 4, col: 12 },
-    TilePosition { layer: 1, row: 4, col: 14 },
-    TilePosition { layer: 1, row: 4, col: 16 },
-    TilePosition { layer: 1, row: 4, col: 18 },
-    TilePosition { layer: 1, row: 4, col: 20 },
-    TilePosition { layer: 1, row: 4, col: 22 },
-    // Row 6: 8 tiles
-    TilePosition { layer: 1, row: 6, col: 6 },
-    TilePosition { layer: 1, row: 6, col: 8 },
-    TilePosition { layer: 1, row: 6, col: 10 },
-    TilePosition { layer: 1, row: 6, col: 12 },
-    TilePosition { layer: 1, row: 6, col: 14 },
-    TilePosition { layer: 1, row: 6, col: 16 },
-    TilePosition { layer: 1, row: 6, col: 18 },
-    TilePosition { layer: 1, row: 6, col: 20 },
-    // Row 8: 8 tiles
-    TilePosition { layer: 1, row: 8, col: 6 },
-    TilePosition { layer: 1, row: 8, col: 8 },
-    TilePosition { layer: 1, row: 8, col: 10 },
-    TilePosition { layer: 1, row: 8, col: 12 },
-    TilePosition { layer: 1, row: 8, col: 14 },
-    TilePosition { layer: 1, row: 8, col: 16 },
-    TilePosition { layer: 1, row: 8, col: 18 },
-    TilePosition { layer: 1, row: 8, col: 20 },
+    // Row 3: 10 tiles
+    TilePosition { layer: 1, row: 3, col: 5 },
+    TilePosition { layer: 1, row: 3, col: 7 },
+    TilePosition { layer: 1, row: 3, col: 9 },
+    TilePosition { layer: 1, row: 3, col: 11 },
+    TilePosition { layer: 1, row: 3, col: 13 },
+    TilePosition { layer: 1, row: 3, col: 15 },
+    TilePosition { layer: 1, row: 3, col: 17 },
+    TilePosition { layer: 1, row: 3, col: 19 },
+    TilePosition { layer: 1, row: 3, col: 21 },
+    TilePosition { layer: 1, row: 3, col: 23 },
+    // Row 5: 10 tiles
+    TilePosition { layer: 1, row: 5, col: 5 },
+    TilePosition { layer: 1, row: 5, col: 7 },
+    TilePosition { layer: 1, row: 5, col: 9 },
+    TilePosition { layer: 1, row: 5, col: 11 },
+    TilePosition { layer: 1, row: 5, col: 13 },
+    TilePosition { layer: 1, row: 5, col: 15 },
+    TilePosition { layer: 1, row: 5, col: 17 },
+    TilePosition { layer: 1, row: 5, col: 19 },
+    TilePosition { layer: 1, row: 5, col: 21 },
+    TilePosition { layer: 1, row: 5, col: 23 },
+    // Row 7: 8 tiles
+    TilePosition { layer: 1, row: 7, col: 7 },
+    TilePosition { layer: 1, row: 7, col: 9 },
+    TilePosition { layer: 1, row: 7, col: 11 },
+    TilePosition { layer: 1, row: 7, col: 13 },
+    TilePosition { layer: 1, row: 7, col: 15 },
+    TilePosition { layer: 1, row: 7, col: 17 },
+    TilePosition { layer: 1, row: 7, col: 19 },
+    TilePosition { layer: 1, row: 7, col: 21 },
+    // Row 9: 8 tiles
+    TilePosition { layer: 1, row: 9, col: 7 },
+    TilePosition { layer: 1, row: 9, col: 9 },
+    TilePosition { layer: 1, row: 9, col: 11 },
+    TilePosition { layer: 1, row: 9, col: 13 },
+    TilePosition { layer: 1, row: 9, col: 15 },
+    TilePosition { layer: 1, row: 9, col: 17 },
+    TilePosition { layer: 1, row: 9, col: 19 },
+    TilePosition { layer: 1, row: 9, col: 21 },
 
     // =========================================================================
-    // Layer 2: 16 tiles - smaller centered rectangle
+    // Layer 2: 16 tiles - smaller centered rectangle, shifted +1 from layer 1
+    // (even positions again, offset +2 total from layer 0)
     // =========================================================================
     // Row 4: 6 tiles
     TilePosition { layer: 2, row: 4, col: 8 },
@@ -315,7 +317,8 @@ pub static TURTLE_POSITIONS: &[TilePosition] = &[
     TilePosition { layer: 2, row: 8, col: 16 },
 
     // =========================================================================
-    // Layer 3: 4 tiles - small square near center
+    // Layer 3: 4 tiles - small square near center, shifted +1 from layer 2
+    // (odd positions, offset +3 total from layer 0)
     // =========================================================================
     TilePosition { layer: 3, row: 5, col: 11 },
     TilePosition { layer: 3, row: 5, col: 13 },
@@ -323,7 +326,8 @@ pub static TURTLE_POSITIONS: &[TilePosition] = &[
     TilePosition { layer: 3, row: 7, col: 13 },
 
     // =========================================================================
-    // Layer 4 (top): 2 tiles - single pair at the very top
+    // Layer 4 (top): 2 tiles - single pair at the very top, shifted +1 from
+    // layer 3 (even positions, offset +4 total from layer 0)
     // =========================================================================
     TilePosition { layer: 4, row: 6, col: 12 },
     TilePosition { layer: 4, row: 6, col: 14 },
