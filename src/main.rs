@@ -316,8 +316,8 @@ fn main() {
                         } else if game_state.status == GameStatus::Won {
                             // Handle clicks on Victory dialog buttons
                             let (win_w, win_h) = renderer.window_size();
+                            let dialog_h: u32 = if game_state.level < 10 { 360 } else { 300 };
                             let dialog_w: u32 = 350;
-                            let dialog_h: u32 = 300;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
 
@@ -325,21 +325,50 @@ fn main() {
                             let btn_h: u32 = 44;
                             let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
 
-                            // New Game button: y offset 160
-                            let new_game_y = dialog_y as i32 + 160;
-                            if x >= btn_x && x < btn_x + btn_w as i32
-                                && y >= new_game_y && y < new_game_y + btn_h as i32
-                            {
-                                game_state = create_new_game_state();
-                                game_state.timer.start();
-                            }
+                            if game_state.level < 10 {
+                                // Next Level button: y offset 155
+                                let next_level_y = dialog_y as i32 + 155;
+                                if x >= btn_x && x < btn_x + btn_w as i32
+                                    && y >= next_level_y && y < next_level_y + btn_h as i32
+                                {
+                                    let next_level = game_state.level + 1;
+                                    game_state = create_new_game_state_for_level(next_level);
+                                    game_state.timer.start();
+                                }
 
-                            // Leaderboard button: y offset 220
-                            let lb_y = dialog_y as i32 + 220;
-                            if x >= btn_x && x < btn_x + btn_w as i32
-                                && y >= lb_y && y < lb_y + btn_h as i32
-                            {
-                                game_state.status = GameStatus::Leaderboard;
+                                // New Game button: y offset 215
+                                let new_game_y = dialog_y as i32 + 215;
+                                if x >= btn_x && x < btn_x + btn_w as i32
+                                    && y >= new_game_y && y < new_game_y + btn_h as i32
+                                {
+                                    game_state = create_new_game_state();
+                                    game_state.timer.start();
+                                }
+
+                                // Leaderboard button: y offset 275
+                                let lb_y = dialog_y as i32 + 275;
+                                if x >= btn_x && x < btn_x + btn_w as i32
+                                    && y >= lb_y && y < lb_y + btn_h as i32
+                                {
+                                    game_state.status = GameStatus::Leaderboard;
+                                }
+                            } else {
+                                // New Game button: y offset 160
+                                let new_game_y = dialog_y as i32 + 160;
+                                if x >= btn_x && x < btn_x + btn_w as i32
+                                    && y >= new_game_y && y < new_game_y + btn_h as i32
+                                {
+                                    game_state = create_new_game_state();
+                                    game_state.timer.start();
+                                }
+
+                                // Leaderboard button: y offset 220
+                                let lb_y = dialog_y as i32 + 220;
+                                if x >= btn_x && x < btn_x + btn_w as i32
+                                    && y >= lb_y && y < lb_y + btn_h as i32
+                                {
+                                    game_state.status = GameStatus::Leaderboard;
+                                }
                             }
                         } else if game_state.status == GameStatus::Leaderboard {
                             // Handle clicks on Leaderboard dialog (Back button)
@@ -505,7 +534,7 @@ fn main() {
                 renderer.render_board(&game_state, layout_rect);
                 let time_str = game_state.timer.format_display();
                 let score = game_state.score.calculate_score();
-                renderer.render_victory(&time_str, score);
+                renderer.render_victory(&time_str, score, game_state.level);
             }
             GameStatus::Lost => {
                 renderer.render_board(&game_state, layout_rect);
@@ -594,18 +623,43 @@ fn handle_select_tile(
     false
 }
 
-/// Creates a new GameState with a freshly generated board.
-fn create_new_game_state() -> GameState {
+/// Returns the number of tiles to place for a given level (1-10).
+/// Level 1 starts easy with 36 tiles and scales up to the full 144 at level 10.
+/// All values are multiples of 4 (required for face pairing).
+fn tiles_for_level(level: u32) -> usize {
+    match level {
+        1 => 36,
+        2 => 48,
+        3 => 60,
+        4 => 72,
+        5 => 84,
+        6 => 96,
+        7 => 108,
+        8 => 120,
+        9 => 132,
+        _ => 144, // level 10+
+    }
+}
+
+/// Creates a new GameState with a freshly generated board for the given level.
+fn create_new_game_state_for_level(level: u32) -> GameState {
     let layout = turtle_layout();
     let seed = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos() as u64;
 
+    let tile_count = tiles_for_level(level);
     let mut generator = BoardGenerator::new(seed);
-    let board = generator
-        .generate(layout, 5)
-        .expect("Failed to generate board after 5 attempts");
+    let board = if tile_count < 144 {
+        generator
+            .generate_with_tile_count(layout, tile_count, 10)
+            .expect("Failed to generate board after 10 attempts")
+    } else {
+        generator
+            .generate(layout, 5)
+            .expect("Failed to generate board after 5 attempts")
+    };
 
     GameState {
         board,
@@ -616,8 +670,14 @@ fn create_new_game_state() -> GameState {
         hint: None,
         undo_stack: Vec::new(),
         shuffles_remaining: 3,
+        level,
         animations: Vec::new(),
     }
+}
+
+/// Creates a new GameState with a freshly generated board (level 1).
+fn create_new_game_state() -> GameState {
+    create_new_game_state_for_level(1)
 }
 
 /// Removes completed animations from the game state.
@@ -751,6 +811,7 @@ fn save_current_game(state: &GameState) {
         shuffles_used: state.score.shuffles_used,
         shuffles_remaining: state.shuffles_remaining,
         pairs_matched: state.score.pairs_matched,
+        level: state.level,
     };
 
     saved.save();
@@ -811,6 +872,7 @@ fn load_saved_game() -> Option<GameState> {
         hint: None,
         undo_stack,
         shuffles_remaining: saved.shuffles_remaining,
+        level: saved.level,
         animations: Vec::new(),
     };
 

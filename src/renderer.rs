@@ -193,8 +193,7 @@ pub struct LayoutMetrics {
 }
 
 /// Height of the HUD bar in pixels (timer, score, shuffle display).
-#[allow(dead_code)]
-const HUD_BAR_HEIGHT: u32 = 40;
+pub const HUD_BAR_HEIGHT: u32 = 40;
 
 /// Computes the layout rectangle that fits within the window while maintaining aspect ratio.
 ///
@@ -211,11 +210,8 @@ const HUD_BAR_HEIGHT: u32 = 40;
 pub fn compute_layout_rect(window_width: u32, window_height: u32) -> LayoutMetrics {
     let aspect_ratio = LAYOUT_GRID_WIDTH / LAYOUT_GRID_HEIGHT;
 
-    // On macOS, reserve space for the HUD bar at the top
-    #[cfg(target_os = "macos")]
+    // Reserve space for the HUD bar at the top
     let available_height = window_height.saturating_sub(HUD_BAR_HEIGHT);
-    #[cfg(not(target_os = "macos"))]
-    let available_height = window_height;
 
     let window_aspect = window_width as f32 / available_height as f32;
 
@@ -233,11 +229,8 @@ pub fn compute_layout_rect(window_width: u32, window_height: u32) -> LayoutMetri
 
     let offset_x = (window_width as f32 - layout_w) / 2.0;
 
-    // On macOS, position layout below the HUD bar; on Linux, center vertically
-    #[cfg(target_os = "macos")]
+    // Position layout below the HUD bar, centered in the remaining space
     let offset_y = HUD_BAR_HEIGHT as f32 + (available_height as f32 - layout_h) / 2.0;
-    #[cfg(not(target_os = "macos"))]
-    let offset_y = (window_height as f32 - layout_h) / 2.0;
 
     let tile_width = layout_w / LAYOUT_GRID_WIDTH;
     let tile_height = layout_h / LAYOUT_GRID_HEIGHT;
@@ -1220,11 +1213,12 @@ impl Renderer {
         btn
     }
 
-    /// Renders the HUD overlay: timer display (MM:SS), score, and shuffles remaining.
+    /// Renders the HUD overlay: timer display (MM:SS), score, level, and shuffles remaining.
     ///
-    /// The HUD is drawn as a top bar with three sections:
+    /// The HUD is drawn as a top bar with four sections:
     /// - Left: Timer display
-    /// - Center: Score
+    /// - Center-left: Score
+    /// - Center-right: Level
     /// - Right: Shuffle count remaining
     ///
     /// Without fonts, these are rendered as colored rectangles with
@@ -1245,21 +1239,32 @@ impl Renderer {
             sdl2::rect::Point::new(win_w as i32, hud_height as i32),
         ).ok();
 
-        // Timer display (left side)
-        let timer_text = state.timer.format_display();
-        self.draw_bitmap_text(&timer_text, 16, 12, 2, Color::RGB(100, 220, 100));
+        // Divide the bar into 4 equal sections
+        let section_w = win_w as i32 / 4;
 
-        // Score display (center) — live score that goes up with each pair matched
+        // Timer display (section 1 — left)
+        let timer_text = state.timer.format_display();
+        let timer_w = timer_text.len() as i32 * 12;
+        let timer_x = (section_w - timer_w) / 2;
+        self.draw_bitmap_text(&timer_text, timer_x, 12, 2, Color::RGB(100, 220, 100));
+
+        // Score display (section 2 — center-left)
         let live_score = state.score.live_score();
         let score_text = format!("SCORE {}", live_score);
-        let score_w = score_text.len() as i32 * 12; // 6px * scale 2
-        let score_x = (win_w as i32 - score_w) / 2;
+        let score_w = score_text.len() as i32 * 12;
+        let score_x = section_w + (section_w - score_w) / 2;
         self.draw_bitmap_text(&score_text, score_x, 12, 2, Color::RGB(255, 215, 0));
 
-        // Shuffles remaining (right side)
+        // Level display (section 3 — center-right)
+        let level_text = format!("LEVEL {}", state.level);
+        let level_w = level_text.len() as i32 * 12;
+        let level_x = section_w * 2 + (section_w - level_w) / 2;
+        self.draw_bitmap_text(&level_text, level_x, 12, 2, Color::RGB(200, 150, 255));
+
+        // Shuffles remaining (section 4 — right)
         let shuffle_text = format!("SHUFFLE {}", state.shuffles_remaining);
         let shuffle_w = shuffle_text.len() as i32 * 12;
-        let shuffle_x = win_w as i32 - shuffle_w - 16;
+        let shuffle_x = section_w * 3 + (section_w - shuffle_w) / 2;
         self.draw_bitmap_text(&shuffle_text, shuffle_x, 12, 2, Color::RGB(100, 150, 255));
     }
 
@@ -1335,10 +1340,11 @@ impl Renderer {
     /// # Arguments
     /// * `time` - Formatted time string (e.g., "05:23")
     /// * `score` - Final score value
-    pub fn render_victory(&mut self, time: &str, score: u32) {
+    pub fn render_victory(&mut self, time: &str, score: u32, level: u32) {
         self.draw_overlay_backdrop();
 
-        let dialog = self.draw_dialog_box(350, 300);
+        let dialog_h: u32 = if level < 10 { 360 } else { 300 };
+        let dialog = self.draw_dialog_box(350, dialog_h);
 
         // "VICTORY!" title
         self.draw_bitmap_text(
@@ -1373,11 +1379,23 @@ impl Renderer {
         let btn_h: u32 = 44;
         let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
 
-        // New Game button (green)
-        self.draw_labeled_button(btn_x, dialog.y() + 160, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+        if level < 10 {
+            // Next Level button (purple) — only shown when not at max level
+            self.draw_labeled_button(btn_x, dialog.y() + 155, btn_w, btn_h, Color::RGB(120, 60, 180), "NEXT LEVEL");
 
-        // Leaderboard button (blue)
-        self.draw_labeled_button(btn_x, dialog.y() + 220, btn_w, btn_h, Color::RGB(50, 100, 180), "LEADERBOARD");
+            // New Game button (green)
+            self.draw_labeled_button(btn_x, dialog.y() + 215, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+
+            // Leaderboard button (blue)
+            self.draw_labeled_button(btn_x, dialog.y() + 275, btn_w, btn_h, Color::RGB(50, 100, 180), "LEADERBOARD");
+        } else {
+            // At max level, no Next Level button
+            // New Game button (green)
+            self.draw_labeled_button(btn_x, dialog.y() + 160, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+
+            // Leaderboard button (blue)
+            self.draw_labeled_button(btn_x, dialog.y() + 220, btn_w, btn_h, Color::RGB(50, 100, 180), "LEADERBOARD");
+        }
     }
 
     /// Renders the leaderboard view showing the top 10 scores.

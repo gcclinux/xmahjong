@@ -2,7 +2,7 @@
 //!
 //! Feature: lmahjong, Property 19: Layout Scaling Preserves Aspect Ratio
 
-use lmahjong::renderer::{compute_layout_rect, LAYOUT_GRID_HEIGHT, LAYOUT_GRID_WIDTH};
+use lmahjong::renderer::{compute_layout_rect, HUD_BAR_HEIGHT, LAYOUT_GRID_HEIGHT, LAYOUT_GRID_WIDTH};
 use proptest::prelude::*;
 
 // Feature: lmahjong, Property 19: Layout Scaling Preserves Aspect Ratio
@@ -34,16 +34,21 @@ proptest! {
             metrics.layout_w,
             window_width
         );
+        let available_h = window_height.saturating_sub(HUD_BAR_HEIGHT);
         prop_assert!(
-            metrics.layout_h <= window_height as f32,
-            "Layout height {} exceeds window height {}",
+            metrics.layout_h <= available_h as f32,
+            "Layout height {} exceeds available height {} (window {} - HUD {})",
             metrics.layout_h,
-            window_height
+            available_h,
+            window_height,
+            HUD_BAR_HEIGHT
         );
 
-        // Assert: layout is centered (offset ≈ (window - layout) / 2)
+        // Assert: layout is centered horizontally
         let expected_offset_x = (window_width as f32 - metrics.layout_w) / 2.0;
-        let expected_offset_y = (window_height as f32 - metrics.layout_h) / 2.0;
+        // Assert: layout is centered vertically in the space below the HUD bar
+        let available_height = window_height.saturating_sub(HUD_BAR_HEIGHT) as f32;
+        let expected_offset_y = HUD_BAR_HEIGHT as f32 + (available_height - metrics.layout_h) / 2.0;
 
         prop_assert!(
             (metrics.offset_x - expected_offset_x).abs() < 0.01,
@@ -53,7 +58,7 @@ proptest! {
         );
         prop_assert!(
             (metrics.offset_y - expected_offset_y).abs() < 0.01,
-            "Offset Y {} not centered (expected {})",
+            "Offset Y {} not centered below HUD (expected {})",
             metrics.offset_y,
             expected_offset_y
         );
@@ -794,6 +799,7 @@ fn make_test_game_state(tile_indices: &[usize]) -> GameState {
         hint: None,
         undo_stack: Vec::new(),
         shuffles_remaining: 3,
+        level: 1,
         animations: Vec::new(),
     }
 }
@@ -911,6 +917,7 @@ fn hit_test_removed_tile_returns_none() {
         hint: None,
         undo_stack: Vec::new(),
         shuffles_remaining: 3,
+        level: 1,
         animations: Vec::new(),
     };
 

@@ -188,6 +188,14 @@ pub struct SavedGame {
     pub shuffles_remaining: u8,
     /// Number of pairs matched so far.
     pub pairs_matched: u32,
+    /// Current level.
+    #[serde(default = "default_level")]
+    pub level: u32,
+}
+
+/// Default level value for backwards compatibility with old save files.
+fn default_level() -> u32 {
+    1
 }
 
 impl SavedGame {

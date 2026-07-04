@@ -27,6 +27,8 @@ pub struct GameState {
     pub undo_stack: Vec<UndoEntry>,
     /// Number of shuffles remaining (starts at 3).
     pub shuffles_remaining: u8,
+    /// Current level (starts at 1).
+    pub level: u32,
     /// Active animations being played.
     pub animations: Vec<Animation>,
 }

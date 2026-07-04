@@ -61,6 +61,30 @@ impl BoardGenerator {
         Ok(board)
     }
 
+    /// Generates a solvable board with a specific number of tiles.
+    ///
+    /// `tile_count` must be a multiple of 4 (each face needs 4 tiles to form 2 matchable pairs).
+    /// The board uses the full layout but only places tiles at `tile_count` positions.
+    ///
+    /// Returns `Err(GenerationError::MaxAttemptsExceeded)` if all attempts fail.
+    pub fn generate_with_tile_count(
+        &mut self,
+        layout: &'static Layout,
+        tile_count: usize,
+        max_attempts: u32,
+    ) -> Result<Board, GenerationError> {
+        assert!(tile_count % 4 == 0, "tile_count must be a multiple of 4");
+        assert!(tile_count <= layout.positions.len(), "tile_count exceeds layout capacity");
+        for _ in 0..max_attempts {
+            match self.try_generate_with_solution_tiles(layout, tile_count) {
+                Ok((board, _)) => return Ok(board),
+                Err(GenerationError::NoFreePairs) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        Err(GenerationError::MaxAttemptsExceeded)
+    }
+
     /// Generates a solvable board and returns the solution sequence.
     ///
     /// The solution is a vector of 72 position pairs in the order they should
@@ -89,45 +113,71 @@ impl BoardGenerator {
         &mut self,
         layout: &'static Layout,
     ) -> Result<(Board, Vec<(usize, usize)>), GenerationError> {
+        self.try_generate_with_solution_tiles(layout, layout.positions.len())
+    }
+
+    /// Attempts a single board generation with a specified number of tiles.
+    ///
+    /// `tile_count` must be even (pairs). The algorithm starts with all positions
+    /// filled, removes pairs until only `tile_count` positions remain, then assigns
+    /// face IDs to those remaining positions.
+    fn try_generate_with_solution_tiles(
+        &mut self,
+        layout: &'static Layout,
+        tile_count: usize,
+    ) -> Result<(Board, Vec<(usize, usize)>), GenerationError> {
         let num_positions = layout.positions.len();
+        let num_pairs = tile_count / 2;
+        let pairs_to_remove = (num_positions - tile_count) / 2;
 
         // Step 1: Start with all positions filled (dummy tiles)
         let mut filled = vec![true; num_positions];
 
-        // Step 2: Repeatedly find free pairs and remove them
-        let mut removal_order: Vec<(usize, usize)> = Vec::with_capacity(72);
+        // Step 1b: Remove pairs to reduce to the target tile count
+        // These removed positions will stay empty in the final board.
+        for _ in 0..pairs_to_remove {
+            let free_positions = self.find_free_positions(&filled, layout);
+            if free_positions.len() < 2 {
+                return Err(GenerationError::NoFreePairs);
+            }
+            let mut candidates = free_positions;
+            candidates.shuffle(&mut self.rng);
+            filled[candidates[0]] = false;
+            filled[candidates[1]] = false;
+        }
 
-        for _ in 0..72 {
-            // Find all currently free positions in the filled board
+        // Step 2: From the reduced board, repeatedly find free pairs and remove them
+        // to establish the solution/placement order.
+        let mut removal_order: Vec<(usize, usize)> = Vec::with_capacity(num_pairs);
+
+        for _ in 0..num_pairs {
             let free_positions = self.find_free_positions(&filled, layout);
 
             if free_positions.len() < 2 {
                 return Err(GenerationError::NoFreePairs);
             }
 
-            // Shuffle and pick two free positions
             let mut candidates = free_positions;
             candidates.shuffle(&mut self.rng);
 
             let pos_a = candidates[0];
             let pos_b = candidates[1];
 
-            // Remove them (mark as empty)
             filled[pos_a] = false;
             filled[pos_b] = false;
 
-            // Record this removal pair
             removal_order.push((pos_a, pos_b));
         }
 
         // Step 3: Assign face IDs to the pairs
-        // Select 36 faces randomly from the 50 available, then assign 2 pairs each = 72 pairs.
-        // This gives visual variety between games since different faces appear each time.
-        let mut available_faces: Vec<u8> = (0u8..50).collect();
+        // Each face appears exactly 4 times (2 pairs), so we need num_pairs/2 distinct faces.
+        let num_faces = num_pairs / 2;
+        let available_face_count = 50u8;
+        let mut available_faces: Vec<u8> = (0..available_face_count).collect();
         available_faces.shuffle(&mut self.rng);
-        let selected_faces: Vec<u8> = available_faces[..36].to_vec();
+        let selected_faces: Vec<u8> = available_faces[..num_faces.min(available_face_count as usize)].to_vec();
 
-        let mut face_assignments: Vec<u8> = Vec::with_capacity(72);
+        let mut face_assignments: Vec<u8> = Vec::with_capacity(num_pairs);
         for &face_id in &selected_faces {
             face_assignments.push(face_id);
             face_assignments.push(face_id);
@@ -149,12 +199,6 @@ impl BoardGenerator {
             });
         }
 
-        // The solution IS the removal_order itself (not reversed):
-        // removal_order[0] was removed first from the full dummy board, meaning
-        // those positions were free on the full board. Since the generated board
-        // has tiles at the same positions, removal_order[0] positions are also
-        // free on the generated board. Removing them in order replays the
-        // deconstruction sequence.
         let solution = removal_order;
 
         Ok((board, solution))

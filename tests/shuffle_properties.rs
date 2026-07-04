@@ -19,6 +19,7 @@ fn make_state(board: lmahjong::board::Board) -> GameState {
         hint: None,
         undo_stack: Vec::new(),
         shuffles_remaining: 3,
+        level: 1,
         animations: Vec::new(),
     }
 }
