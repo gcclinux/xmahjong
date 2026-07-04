@@ -17,7 +17,7 @@ LMahjong is a classic tile-matching solitaire game featuring Tux penguin-themed 
 - Keyboard shortcuts for all actions
 - Audio feedback with mute support
 - Resizable window (min 1920×1080, adapts to screen resolution)
-- Ubuntu Snap package distribution
+- Native Linux packages (.deb, .rpm, AppImage)
 
 ## Prerequisites
 
@@ -119,37 +119,6 @@ Score starts at 0 and increases with each pair matched:
 
 Top 10 scores are saved to a local leaderboard.
 
-## Installing as a Snap
-
-Build and install locally:
-
-```bash
-# Install snapcraft if needed
-sudo snap install snapcraft --classic
-
-# Build the snap
-snapcraft
-
-# Install the local snap
-sudo snap install lmahjong_*.snap --dangerous
-```
-
-After installation, run with:
-
-```bash
-lmahjong
-```
-
-### Snap Interfaces
-
-The snap requires these interfaces (auto-connected on most systems):
-
-```bash
-sudo snap connect lmahjong:x11
-sudo snap connect lmahjong:opengl
-sudo snap connect lmahjong:audio-playback
-```
-
 ## Packaging (.deb, .rpm, AppImage)
 
 A packaging script is included to create distribution packages:
@@ -201,9 +170,9 @@ AppImages bundle SDL2 libraries inside, so no system dependencies are needed.
 
 ## Data Storage
 
-- **Leaderboard:** `$SNAP_USER_DATA/leaderboard.json` (snap) or `~/.local/share/lmahjong/leaderboard.json`
-- **Settings:** `$SNAP_USER_DATA/settings.json` or `~/.local/share/lmahjong/settings.json`
-- **Saved game:** `$SNAP_USER_DATA/savegame.json` or `~/.local/share/lmahjong/savegame.json`
+- **Leaderboard:** `~/.local/share/lmahjong/leaderboard.json`
+- **Settings:** `~/.local/share/lmahjong/settings.json`
+- **Saved game:** `~/.local/share/lmahjong/savegame.json`
 
 ## Project Structure
 
@@ -229,13 +198,6 @@ tests/
 ├── score_properties.rs      # Property 16
 ├── storage_properties.rs    # Properties 17, 18
 └── renderer_properties.rs   # Property 19
-snap/
-├── snapcraft.yaml           # Snap build configuration
-├── gui/
-│   ├── lmahjong.desktop     # Desktop entry
-│   └── icon.png             # Application icon
-└── local/
-    └── launcher.sh          # Interface detection wrapper
 ```
 
 ## License
