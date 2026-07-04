@@ -126,6 +126,8 @@ build_rpm() {
 
     # Spec file
     cat > "$rpmbuild_dir/SPECS/$APP_NAME.spec" <<EOF
+%global debug_package %{nil}
+
 Name:           $APP_NAME
 Version:        $APP_VERSION
 Release:        1%{?dist}
@@ -156,7 +158,7 @@ cp -a usr %{buildroot}/usr
 %{_datadir}/icons/hicolor/256x256/apps/$APP_NAME.png
 EOF
 
-    rpmbuild --define "_topdir $rpmbuild_dir" -bb "$rpmbuild_dir/SPECS/$APP_NAME.spec"
+    rpmbuild --define "_topdir $rpmbuild_dir" --define "_dbpath $rpmbuild_dir/rpmdb" -bb "$rpmbuild_dir/SPECS/$APP_NAME.spec"
     local rpm_file=$(find "$rpmbuild_dir/RPMS" -name "*.rpm" | head -1)
     if [ -n "$rpm_file" ]; then
         cp "$rpm_file" "$BUILD_DIR/"
