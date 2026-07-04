@@ -193,6 +193,7 @@ pub struct LayoutMetrics {
 }
 
 /// Height of the HUD bar in pixels (timer, score, shuffle display).
+#[allow(dead_code)]
 const HUD_BAR_HEIGHT: u32 = 40;
 
 /// Computes the layout rectangle that fits within the window while maintaining aspect ratio.
