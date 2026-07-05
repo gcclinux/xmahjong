@@ -27,7 +27,11 @@ const TOTAL_FACE_COUNT: usize = 100;
 const DEFAULT_WIDTH: u32 = 1900;
 
 /// Default window width in pixels.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+const DEFAULT_WIDTH: u32 = 1280;
+
+/// Default window width in pixels.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 const DEFAULT_WIDTH: u32 = 1920;
 
 /// Default window height in pixels.
@@ -35,7 +39,11 @@ const DEFAULT_WIDTH: u32 = 1920;
 const DEFAULT_HEIGHT: u32 = 900;
 
 /// Default window height in pixels.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+const DEFAULT_HEIGHT: u32 = 720;
+
+/// Default window height in pixels.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 const DEFAULT_HEIGHT: u32 = 1080;
 
 /// Minimum window width in pixels.
@@ -43,7 +51,11 @@ const DEFAULT_HEIGHT: u32 = 1080;
 const MIN_WIDTH: u32 = 800;
 
 /// Minimum window width in pixels.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+const MIN_WIDTH: u32 = 800;
+
+/// Minimum window width in pixels.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 const MIN_WIDTH: u32 = 1920;
 
 /// Minimum window height in pixels.
@@ -51,7 +63,11 @@ const MIN_WIDTH: u32 = 1920;
 const MIN_HEIGHT: u32 = 600;
 
 /// Minimum window height in pixels.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+const MIN_HEIGHT: u32 = 600;
+
+/// Minimum window height in pixels.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 const MIN_HEIGHT: u32 = 1080;
 
 /// Resolves the assets directory path at runtime.
@@ -435,7 +451,15 @@ impl Renderer {
                 (usable.width(), usable.height())
             };
 
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(target_os = "windows")]
+            let (screen_w, screen_h) = {
+                // On Windows, use usable bounds so the taskbar is not covered by default
+                let usable = video_subsystem.display_usable_bounds(0)
+                    .unwrap_or(sdl2::rect::Rect::new(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT));
+                (usable.width(), usable.height())
+            };
+
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
             let (screen_w, screen_h) = {
                 let display_mode = video_subsystem.desktop_display_mode(0)
                     .unwrap_or(sdl2::video::DisplayMode::new(

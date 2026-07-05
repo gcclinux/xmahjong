@@ -2,7 +2,7 @@
 name = "lmahjong"
 version = "0.1.1"
 edition = "2021"
-description = "A Tux-themed Mahjong solitaire game for Linux"
+description = "A Tux-themed Mahjong solitaire game"
 license = "GPL-3.0-or-later"
 
 [dependencies]
@@ -14,3 +14,7 @@ ureq = "2.9"
 
 [dev-dependencies]
 proptest = "1"
+
+# winres embeds the .exe icon and version info on Windows builds only.
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"

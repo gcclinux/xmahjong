@@ -28,3 +28,11 @@ snap/.snapcraft/
 # Runtime data (leaderboard, settings)
 leaderboard.json
 settings.json
+
+# Windows packaging: downloaded SDL2 developer libraries (auto-fetched by package.ps1)
+sdl2-dev/
+# Windows packaging: generated Cargo config with absolute SDL2 lib path
+.cargo/config.toml
+
+# Added by ggshield
+.cache_ggshield

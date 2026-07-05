@@ -8,9 +8,10 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Returns the storage directory path.
-/// Checks `$SNAP_USER_DATA` first, then uses the platform-appropriate location:
-/// - macOS: `~/Library/Application Support/lmahjong/`
-/// - Linux: `~/.local/share/lmahjong/`
+/// Checks `$SNAP_USER_DATA` first (Snap packages), then uses the platform-appropriate location:
+/// - macOS:   `~/Library/Application Support/lmahjong/`
+/// - Windows: `%APPDATA%\lmahjong\`
+/// - Linux:   `~/.local/share/lmahjong/`
 fn storage_dir() -> PathBuf {
     if let Ok(snap_dir) = std::env::var("SNAP_USER_DATA") {
         PathBuf::from(snap_dir)
@@ -20,17 +21,22 @@ fn storage_dir() -> PathBuf {
 }
 
 /// Platform-appropriate storage directory.
-/// - macOS: `~/Library/Application Support/lmahjong/`
-/// - Linux/other: `~/.local/share/lmahjong/`
+/// - macOS:   `~/Library/Application Support/lmahjong/`
+/// - Windows: `%APPDATA%\lmahjong\`  (e.g. C:\Users\<user>\AppData\Roaming\lmahjong)
+/// - Linux:   `~/.local/share/lmahjong/`
 fn dirs_fallback() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-
     if cfg!(target_os = "macos") {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         PathBuf::from(home)
             .join("Library")
             .join("Application Support")
             .join("lmahjong")
+    } else if cfg!(target_os = "windows") {
+        // APPDATA is always set on Windows; fall back to current dir if somehow missing
+        let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(appdata).join("lmahjong")
     } else {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         PathBuf::from(home)
             .join(".local")
             .join("share")
