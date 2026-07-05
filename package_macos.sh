@@ -18,7 +18,7 @@ set -euo pipefail
 
 APP_NAME="lmahjong"
 APP_DISPLAY_NAME="LMahjong"
-APP_VERSION="0.1.0"
+APP_VERSION="0.1.1"
 APP_IDENTIFIER="com.lmahjong.app"
 APP_DESCRIPTION="A Tux-themed Mahjong solitaire game"
 

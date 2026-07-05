@@ -1653,6 +1653,68 @@ impl Renderer {
         );
     }
 
+    /// Renders the update available dialog.
+    ///
+    /// Shows the user that a newer version is available with options:
+    /// - Download (green) - opens the releases page
+    /// - Not Now (gray) - dismisses the dialog
+    pub fn render_update_dialog(&mut self, current_version: &str, latest_version: &str) {
+        self.draw_overlay_backdrop();
+
+        let dialog = self.draw_dialog_box(360, 200);
+
+        // "UPDATE AVAILABLE" title
+        self.draw_bitmap_text(
+            "UPDATE AVAILABLE",
+            dialog.x() + 68,
+            dialog.y() + 20,
+            3,
+            Color::RGB(100, 220, 100),
+        );
+
+        // Current version line
+        let current_line = format!("CURRENT: V{}", current_version);
+        self.draw_bitmap_text(
+            &current_line,
+            dialog.x() + 40,
+            dialog.y() + 64,
+            2,
+            Color::RGB(180, 180, 200),
+        );
+
+        // Latest version line
+        let latest_line = format!("LATEST:  V{}", latest_version);
+        self.draw_bitmap_text(
+            &latest_line,
+            dialog.x() + 40,
+            dialog.y() + 90,
+            2,
+            Color::RGB(220, 220, 255),
+        );
+
+        let btn_w: u32 = 140;
+        let btn_h: u32 = 40;
+        let btn_spacing: i32 = 20;
+
+        // Center the two buttons horizontally
+        let total_btn_width = (btn_w * 2) as i32 + btn_spacing;
+        let btn_start_x = dialog.x() + (dialog.width() as i32 - total_btn_width) / 2;
+        let btn_y = dialog.y() + 140;
+
+        // Download button (green)
+        self.draw_labeled_button(btn_start_x, btn_y, btn_w, btn_h, Color::RGB(40, 140, 60), "DOWNLOAD");
+
+        // Not Now button (gray)
+        self.draw_labeled_button(
+            btn_start_x + btn_w as i32 + btn_spacing,
+            btn_y,
+            btn_w,
+            btn_h,
+            Color::RGB(100, 100, 110),
+            "NOT NOW",
+        );
+    }
+
     /// Renders the quit confirmation dialog.
     ///
     /// Asks the player to confirm quitting the current game.

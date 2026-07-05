@@ -23,6 +23,84 @@ const FRAME_DURATION_MS: u64 = 16;
 /// Duration in seconds before auto-dismissing hints.
 const HINT_DISMISS_SECS: u64 = 3;
 
+/// Current application version (read from the `release` file at compile time).
+const CURRENT_VERSION: &str = env!("LMAHJONG_VERSION");
+
+/// URL to fetch the latest version number.
+const VERSION_CHECK_URL: &str =
+    "https://raw.githubusercontent.com/gcclinux/lmahjong/refs/heads/main/release";
+
+/// URL to open for downloading the latest release.
+const RELEASE_DOWNLOAD_URL: &str = "https://github.com/gcclinux/lmahjong/releases/latest";
+
+/// State for the update-available dialog shown at startup.
+struct UpdateInfo {
+    latest_version: String,
+}
+
+/// Checks for a newer version by fetching the remote release file.
+/// Returns Some(latest_version) if an update is available, None otherwise.
+fn check_for_update() -> Option<String> {
+    let response = ureq::get(VERSION_CHECK_URL)
+        .timeout(std::time::Duration::from_secs(5))
+        .call()
+        .ok()?;
+
+    let body = response.into_string().ok()?;
+    let latest = body.trim().to_string();
+
+    if latest.is_empty() {
+        return None;
+    }
+
+    // Compare versions: only show update if remote is strictly newer
+    if version_is_newer(&latest, CURRENT_VERSION) {
+        Some(latest)
+    } else {
+        None
+    }
+}
+
+/// Returns true if `latest` is a newer version than `current`.
+/// Compares numeric semver components left-to-right.
+fn version_is_newer(latest: &str, current: &str) -> bool {
+    let parse = |v: &str| -> Vec<u32> {
+        v.split('.')
+            .filter_map(|s| s.parse::<u32>().ok())
+            .collect()
+    };
+    let l = parse(latest);
+    let c = parse(current);
+
+    for i in 0..l.len().max(c.len()) {
+        let lv = l.get(i).copied().unwrap_or(0);
+        let cv = c.get(i).copied().unwrap_or(0);
+        if lv > cv {
+            return true;
+        }
+        if lv < cv {
+            return false;
+        }
+    }
+    false
+}
+
+/// Opens a URL in the user's default browser.
+fn open_url(url: &str) {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(url).spawn();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn();
+    }
+}
+
 fn main() {
     // 1. Initialize SDL2 context
     let sdl_context = sdl2::init().expect("Failed to initialize SDL2");
@@ -67,6 +145,11 @@ fn main() {
 
     // Track name entry state for leaderboard (active after winning with a qualifying score)
     let mut name_entry: Option<NameEntryState> = None;
+
+    // Check for updates at startup (non-blocking: if network fails, silently skip)
+    let mut update_info: Option<UpdateInfo> = check_for_update().map(|v| UpdateInfo {
+        latest_version: v,
+    });
 
     // SDL2 event pump
     let mut event_pump = sdl_context
@@ -146,6 +229,53 @@ fn main() {
             );
 
             if let Some(action) = input_handler.process_event(&event, is_paused) {
+                // If update dialog is showing, handle it first
+                if update_info.is_some() {
+                    match action {
+                        GameAction::SelectTile(x, y) => {
+                            // Check if click hit DOWNLOAD or NOT NOW button
+                            let (win_w, win_h) = renderer.window_size();
+                            let dialog_w: i32 = 360;
+                            let dialog_h: i32 = 200;
+                            let dialog_x = (win_w as i32 - dialog_w) / 2;
+                            let dialog_y = (win_h as i32 - dialog_h) / 2;
+
+                            let btn_w: i32 = 140;
+                            let btn_h: i32 = 40;
+                            let btn_spacing: i32 = 20;
+                            let total_btn_width = btn_w * 2 + btn_spacing;
+                            let btn_start_x = dialog_x + (dialog_w - total_btn_width) / 2;
+                            let btn_y = dialog_y + 140;
+
+                            // DOWNLOAD button area
+                            if x >= btn_start_x && x < btn_start_x + btn_w
+                                && y >= btn_y && y < btn_y + btn_h
+                            {
+                                open_url(RELEASE_DOWNLOAD_URL);
+                                update_info = None;
+                            }
+
+                            // NOT NOW button area
+                            let not_now_x = btn_start_x + btn_w + btn_spacing;
+                            if x >= not_now_x && x < not_now_x + btn_w
+                                && y >= btn_y && y < btn_y + btn_h
+                            {
+                                update_info = None;
+                            }
+                            continue;
+                        }
+                        GameAction::Quit => {
+                            update_info = None;
+                            continue;
+                        }
+                        _ => {
+                            // Any other key dismisses the update dialog
+                            update_info = None;
+                            continue;
+                        }
+                    }
+                }
+
                 // If quit confirmation is showing, handle specially
                 if quit_confirmation {
                     match action {
@@ -559,6 +689,10 @@ fn main() {
 
         if quit_confirmation {
             renderer.render_quit_confirmation();
+        }
+
+        if let Some(ref info) = update_info {
+            renderer.render_update_dialog(CURRENT_VERSION, &info.latest_version);
         }
 
         // --- 7g. Present frame ---

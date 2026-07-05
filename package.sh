@@ -16,7 +16,7 @@
 set -euo pipefail
 
 APP_NAME="lmahjong"
-APP_VERSION="0.1.0"
+APP_VERSION="0.1.1"
 APP_DESCRIPTION="A Tux-themed Mahjong solitaire game for Linux"
 APP_LICENSE="GPL-3.0-or-later"
 APP_MAINTAINER="LMahjong Developer <dev@lmahjong.local>"
