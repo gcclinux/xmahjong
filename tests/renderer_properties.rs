@@ -800,6 +800,7 @@ fn make_test_game_state(tile_indices: &[usize]) -> GameState {
         undo_stack: Vec::new(),
         shuffles_remaining: 3,
         level: 1,
+        base_score: 0,
         animations: Vec::new(),
     }
 }
@@ -918,6 +919,7 @@ fn hit_test_removed_tile_returns_none() {
         undo_stack: Vec::new(),
         shuffles_remaining: 3,
         level: 1,
+        base_score: 0,
         animations: Vec::new(),
     };
 

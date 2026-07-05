@@ -16,8 +16,11 @@ use crate::board::TilePosition;
 use crate::game_state::{Animation, GameState};
 use crate::storage::Leaderboard;
 
-/// Number of distinct tile face images.
+/// Number of distinct tile face images per style.
 const TILE_FACE_COUNT: usize = 50;
+
+/// Total number of tile face textures (penguins + dogs).
+const TOTAL_FACE_COUNT: usize = 100;
 
 /// Default window width in pixels.
 #[cfg(target_os = "macos")]
@@ -343,10 +346,10 @@ pub struct PlaceholderTiles {
 
 impl PlaceholderTiles {
     fn new() -> Self {
-        let colors: Vec<Color> = (0..TILE_FACE_COUNT)
+        let colors: Vec<Color> = (0..TOTAL_FACE_COUNT)
             .map(|i| {
                 // Generate distinct colors using HSV-like distribution
-                let hue = (i as f32 / TILE_FACE_COUNT as f32) * 360.0;
+                let hue = (i as f32 / TOTAL_FACE_COUNT as f32) * 360.0;
                 let (r, g, b) = hsv_to_rgb(hue, 0.7, 0.9);
                 Color::RGB(r, g, b)
             })
@@ -526,13 +529,15 @@ impl Renderer {
 
     /// Attempts to load tile face textures from the assets directory.
     /// Returns a Vec of Option<Texture> - loaded textures or None for missing files.
+    /// Indices 0-49 are penguin tiles (assets/tiles/), indices 50-99 are dog tiles (assets/dogs/).
     /// Missing textures are logged as warnings and will use placeholder colors.
     ///
     /// SAFETY: The returned textures have their lifetime erased to 'static.
     /// The caller must ensure the TextureCreator outlives these textures.
     fn load_tile_textures(texture_creator: &TextureCreator<WindowContext>, base: &str) -> Vec<Option<Texture<'static>>> {
-        let mut textures = Vec::with_capacity(TILE_FACE_COUNT);
+        let mut textures = Vec::with_capacity(TOTAL_FACE_COUNT);
 
+        // Load penguin tiles (face IDs 0-49)
         for i in 0..TILE_FACE_COUNT {
             let path = format!("{}/tiles/face_{:02}.png", base, i);
             match texture_creator.load_texture(&path) {
@@ -548,6 +553,20 @@ impl Renderer {
                         "[LMahjong] Warning: Tile texture not found: '{}'. Using placeholder. ({})",
                         path, e
                     );
+                }
+            }
+        }
+
+        // Load dog tiles (face IDs 50-99)
+        for i in 0..TILE_FACE_COUNT {
+            let path = format!("{}/dogs/face_{:02}.png", base, i);
+            match texture_creator.load_texture(&path) {
+                Ok(texture) => {
+                    let texture: Texture<'static> = unsafe { std::mem::transmute(texture) };
+                    textures.push(Some(texture));
+                }
+                Err(_) => {
+                    textures.push(None);
                 }
             }
         }
@@ -1248,9 +1267,9 @@ impl Renderer {
         let timer_x = (section_w - timer_w) / 2;
         self.draw_bitmap_text(&timer_text, timer_x, 12, 2, Color::RGB(100, 220, 100));
 
-        // Score display (section 2 — center-left)
-        let live_score = state.score.live_score();
-        let score_text = format!("SCORE {}", live_score);
+        // Score display (section 2 — center-left) — total across all levels
+        let total_score = state.base_score + state.score.live_score();
+        let score_text = format!("SCORE {}", total_score);
         let score_w = score_text.len() as i32 * 12;
         let score_x = section_w + (section_w - score_w) / 2;
         self.draw_bitmap_text(&score_text, score_x, 12, 2, Color::RGB(255, 215, 0));
@@ -1343,7 +1362,7 @@ impl Renderer {
     pub fn render_victory(&mut self, time: &str, score: u32, level: u32) {
         self.draw_overlay_backdrop();
 
-        let dialog_h: u32 = if level < 10 { 360 } else { 300 };
+        let dialog_h: u32 = if level < 20 { 360 } else { 300 };
         let dialog = self.draw_dialog_box(350, dialog_h);
 
         // "VICTORY!" title
@@ -1379,7 +1398,7 @@ impl Renderer {
         let btn_h: u32 = 44;
         let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
 
-        if level < 10 {
+        if level < 20 {
             // Next Level button (purple) — only shown when not at max level
             self.draw_labeled_button(btn_x, dialog.y() + 155, btn_w, btn_h, Color::RGB(120, 60, 180), "NEXT LEVEL");
 

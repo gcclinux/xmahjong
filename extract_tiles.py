@@ -229,9 +229,9 @@ def main():
 
     print(f"\nAll output tiles are {TILE_SIZE}x{TILE_SIZE} RGBA with transparent padding.")
     
-    if tile_index != 36:
-        print(f"\nNOTE: Found {tile_index} images (expected 36).")
-        print("You may need to select which 36 to use for the game.")
+    if tile_index != 50:
+        print(f"\nNOTE: Found {tile_index} images (expected 30).")
+        print("You may need to select which 50 to use for the game.")
 
 
 if __name__ == "__main__":

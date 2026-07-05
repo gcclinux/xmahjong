@@ -85,6 +85,33 @@ impl BoardGenerator {
         Err(GenerationError::MaxAttemptsExceeded)
     }
 
+    /// Generates a solvable board with a specific number of tiles and a custom face pool.
+    ///
+    /// `tile_count` must be a multiple of 4. `face_pool` provides the set of face IDs
+    /// to choose from (e.g., a mix of penguin and dog face IDs for later levels).
+    ///
+    /// Returns `Err(GenerationError::MaxAttemptsExceeded)` if all attempts fail.
+    pub fn generate_with_faces(
+        &mut self,
+        layout: &'static Layout,
+        tile_count: usize,
+        face_pool: &[u8],
+        max_attempts: u32,
+    ) -> Result<Board, GenerationError> {
+        assert!(tile_count % 4 == 0, "tile_count must be a multiple of 4");
+        assert!(tile_count <= layout.positions.len(), "tile_count exceeds layout capacity");
+        let num_faces_needed = tile_count / 4;
+        assert!(face_pool.len() >= num_faces_needed, "face_pool too small for tile_count");
+        for _ in 0..max_attempts {
+            match self.try_generate_with_faces(layout, tile_count, face_pool) {
+                Ok(board) => return Ok(board),
+                Err(GenerationError::NoFreePairs) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        Err(GenerationError::MaxAttemptsExceeded)
+    }
+
     /// Generates a solvable board and returns the solution sequence.
     ///
     /// The solution is a vector of 72 position pairs in the order they should
@@ -202,6 +229,82 @@ impl BoardGenerator {
         let solution = removal_order;
 
         Ok((board, solution))
+    }
+
+    /// Attempts a single board generation with a custom face pool.
+    ///
+    /// Similar to `try_generate_with_solution_tiles` but draws face IDs from the
+    /// provided `face_pool` rather than the default 0..50 range.
+    fn try_generate_with_faces(
+        &mut self,
+        layout: &'static Layout,
+        tile_count: usize,
+        face_pool: &[u8],
+    ) -> Result<Board, GenerationError> {
+        let num_positions = layout.positions.len();
+        let num_pairs = tile_count / 2;
+        let pairs_to_remove = (num_positions - tile_count) / 2;
+
+        let mut filled = vec![true; num_positions];
+
+        // Remove pairs to reduce to the target tile count
+        for _ in 0..pairs_to_remove {
+            let free_positions = self.find_free_positions(&filled, layout);
+            if free_positions.len() < 2 {
+                return Err(GenerationError::NoFreePairs);
+            }
+            let mut candidates = free_positions;
+            candidates.shuffle(&mut self.rng);
+            filled[candidates[0]] = false;
+            filled[candidates[1]] = false;
+        }
+
+        // Find free pairs and remove them to establish solution order
+        let mut removal_order: Vec<(usize, usize)> = Vec::with_capacity(num_pairs);
+
+        for _ in 0..num_pairs {
+            let free_positions = self.find_free_positions(&filled, layout);
+            if free_positions.len() < 2 {
+                return Err(GenerationError::NoFreePairs);
+            }
+            let mut candidates = free_positions;
+            candidates.shuffle(&mut self.rng);
+            let pos_a = candidates[0];
+            let pos_b = candidates[1];
+            filled[pos_a] = false;
+            filled[pos_b] = false;
+            removal_order.push((pos_a, pos_b));
+        }
+
+        // Assign face IDs from the custom face pool
+        let num_faces = num_pairs / 2;
+        let mut pool: Vec<u8> = face_pool.to_vec();
+        pool.shuffle(&mut self.rng);
+        let selected_faces: Vec<u8> = pool[..num_faces].to_vec();
+
+        let mut face_assignments: Vec<u8> = Vec::with_capacity(num_pairs);
+        for &face_id in &selected_faces {
+            face_assignments.push(face_id);
+            face_assignments.push(face_id);
+        }
+        face_assignments.shuffle(&mut self.rng);
+
+        // Build the final board
+        let mut board = Board::new(layout);
+
+        for (pair_idx, &(pos_a, pos_b)) in removal_order.iter().enumerate() {
+            let face_id = face_assignments[pair_idx];
+            board.tiles[pos_a] = Some(Tile {
+                face_id,
+                position: layout.positions[pos_a],
+            });
+            board.tiles[pos_b] = Some(Tile {
+                face_id,
+                position: layout.positions[pos_b],
+            });
+        }
+
+        Ok(board)
     }
 
     /// Finds all positions that are currently "free" in the filled board.

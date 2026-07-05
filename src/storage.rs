@@ -191,6 +191,9 @@ pub struct SavedGame {
     /// Current level.
     #[serde(default = "default_level")]
     pub level: u32,
+    /// Accumulated score from previous levels.
+    #[serde(default)]
+    pub base_score: u32,
 }
 
 /// Default level value for backwards compatibility with old save files.

@@ -186,6 +186,7 @@ Double-click the `.dmg` to mount it, then drag `LMahjong.app` into the Applicati
 ## Assets
 
 ![Tux Penguin Sprite Sheet](sprite/tux-sprite-lmahjong.png)
+![Puppy Sprite Sheet](sprite/puppy-sprite-lmahjong.png)
 
 ## Data Storage
 

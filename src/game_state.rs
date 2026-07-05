@@ -29,6 +29,8 @@ pub struct GameState {
     pub shuffles_remaining: u8,
     /// Current level (starts at 1).
     pub level: u32,
+    /// Accumulated score from previous levels (carried forward on level advance).
+    pub base_score: u32,
     /// Active animations being played.
     pub animations: Vec<Animation>,
 }

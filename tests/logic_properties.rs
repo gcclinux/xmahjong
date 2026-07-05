@@ -45,6 +45,7 @@ proptest! {
             undo_stack: Vec::new(),
             shuffles_remaining: 3,
             level: 1,
+            base_score: 0,
             animations: Vec::new(),
         };
 
@@ -94,6 +95,7 @@ fn make_state(board: lmahjong::board::Board) -> GameState {
         undo_stack: Vec::new(),
         shuffles_remaining: 3,
         level: 1,
+        base_score: 0,
         animations: Vec::new(),
     }
 }

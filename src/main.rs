@@ -218,8 +218,8 @@ fn main() {
                                     y,
                                 );
                                 if won {
-                                    // Check if score qualifies for leaderboard
-                                    let score = game_state.score.calculate_score();
+                                    // Check if total score qualifies for leaderboard
+                                    let score = game_state.base_score + game_state.score.calculate_score();
                                     let leaderboard = Leaderboard::load();
                                     if leaderboard.qualifies(score) {
                                         let time_seconds = game_state.score.elapsed_seconds;
@@ -316,7 +316,7 @@ fn main() {
                         } else if game_state.status == GameStatus::Won {
                             // Handle clicks on Victory dialog buttons
                             let (win_w, win_h) = renderer.window_size();
-                            let dialog_h: u32 = if game_state.level < 10 { 360 } else { 300 };
+                            let dialog_h: u32 = if game_state.level < 20 { 360 } else { 300 };
                             let dialog_w: u32 = 350;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
@@ -325,14 +325,16 @@ fn main() {
                             let btn_h: u32 = 44;
                             let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
 
-                            if game_state.level < 10 {
+                            if game_state.level < 20 {
                                 // Next Level button: y offset 155
                                 let next_level_y = dialog_y as i32 + 155;
                                 if x >= btn_x && x < btn_x + btn_w as i32
                                     && y >= next_level_y && y < next_level_y + btn_h as i32
                                 {
                                     let next_level = game_state.level + 1;
+                                    let accumulated = game_state.base_score + game_state.score.calculate_score();
                                     game_state = create_new_game_state_for_level(next_level);
+                                    game_state.base_score = accumulated;
                                     game_state.timer.start();
                                 }
 
@@ -533,7 +535,7 @@ fn main() {
             GameStatus::Won => {
                 renderer.render_board(&game_state, layout_rect);
                 let time_str = game_state.timer.format_display();
-                let score = game_state.score.calculate_score();
+                let score = game_state.base_score + game_state.score.calculate_score();
                 renderer.render_victory(&time_str, score, game_state.level);
             }
             GameStatus::Lost => {
@@ -623,11 +625,14 @@ fn handle_select_tile(
     false
 }
 
-/// Returns the number of tiles to place for a given level (1-10).
-/// Level 1 starts easy with 36 tiles and scales up to the full 144 at level 10.
+/// Returns the number of tiles to place for a given level (1-20).
+/// Levels 1-10 scale from 36 to 144 tiles (penguins only).
+/// Levels 11-20 repeat the same tile counts but mix in dog faces.
 /// All values are multiples of 4 (required for face pairing).
 fn tiles_for_level(level: u32) -> usize {
-    match level {
+    // Levels 11-20 mirror the tile counts of levels 1-10
+    let effective = if level > 10 { level - 10 } else { level };
+    match effective {
         1 => 36,
         2 => 48,
         3 => 60,
@@ -637,7 +642,33 @@ fn tiles_for_level(level: u32) -> usize {
         7 => 108,
         8 => 120,
         9 => 132,
-        _ => 144, // level 10+
+        _ => 144,
+    }
+}
+
+/// Returns the face pool for a given level.
+/// - Levels 1-10: only penguin faces (0-49)
+/// - Levels 11-20: penguin faces (0-49) mixed with an increasing number of dog faces (50-99)
+///   Level 11: 1 dog style added, Level 12: 2 dog styles, ... Level 15+: 5 dog styles
+fn face_pool_for_level(level: u32) -> Vec<u8> {
+    if level <= 10 {
+        // Pure penguin faces
+        (0u8..50).collect()
+    } else {
+        // Mix penguin + dog faces
+        // Add 1 dog style per level from 11 to 15, then stay at 5 dog styles for 16-20
+        let dog_styles = ((level - 10) as usize).min(5);
+        let mut pool: Vec<u8> = (0u8..50).collect(); // all penguins
+        // Add dog faces: each "style" adds 10 dog face IDs
+        // Style 1: faces 50-59, Style 2: 60-69, etc.
+        for s in 0..dog_styles {
+            let start = 50 + (s as u8 * 10);
+            let end = start + 10;
+            for face_id in start..end {
+                pool.push(face_id);
+            }
+        }
+        pool
     }
 }
 
@@ -650,15 +681,25 @@ fn create_new_game_state_for_level(level: u32) -> GameState {
         .as_nanos() as u64;
 
     let tile_count = tiles_for_level(level);
+    let face_pool = face_pool_for_level(level);
     let mut generator = BoardGenerator::new(seed);
-    let board = if tile_count < 144 {
-        generator
-            .generate_with_tile_count(layout, tile_count, 10)
-            .expect("Failed to generate board after 10 attempts")
+
+    let board = if level <= 10 {
+        // Levels 1-10: use standard generation (penguin faces only)
+        if tile_count < 144 {
+            generator
+                .generate_with_tile_count(layout, tile_count, 10)
+                .expect("Failed to generate board after 10 attempts")
+        } else {
+            generator
+                .generate(layout, 5)
+                .expect("Failed to generate board after 5 attempts")
+        }
     } else {
+        // Levels 11-20: use custom face pool (penguins + dogs)
         generator
-            .generate(layout, 5)
-            .expect("Failed to generate board after 5 attempts")
+            .generate_with_faces(layout, tile_count, &face_pool, 10)
+            .expect("Failed to generate board after 10 attempts")
     };
 
     GameState {
@@ -669,8 +710,9 @@ fn create_new_game_state_for_level(level: u32) -> GameState {
         selection: None,
         hint: None,
         undo_stack: Vec::new(),
-        shuffles_remaining: 3,
+        shuffles_remaining: 30,
         level,
+        base_score: 0,
         animations: Vec::new(),
     }
 }
@@ -812,6 +854,7 @@ fn save_current_game(state: &GameState) {
         shuffles_remaining: state.shuffles_remaining,
         pairs_matched: state.score.pairs_matched,
         level: state.level,
+        base_score: state.base_score,
     };
 
     saved.save();
@@ -873,6 +916,7 @@ fn load_saved_game() -> Option<GameState> {
         undo_stack,
         shuffles_remaining: saved.shuffles_remaining,
         level: saved.level,
+        base_score: saved.base_score,
         animations: Vec::new(),
     };
 

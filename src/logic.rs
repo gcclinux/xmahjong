@@ -297,6 +297,7 @@ mod tests {
             undo_stack: Vec::new(),
             shuffles_remaining: 3,
             level: 1,
+            base_score: 0,
             animations: Vec::new(),
         }
     }
