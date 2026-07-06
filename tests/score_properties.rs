@@ -27,6 +27,7 @@ proptest! {
         let tracker = ScoreTracker {
             hints_used,
             shuffles_used,
+            undos_used: 0,
             elapsed_seconds,
             pairs_matched,
         };
@@ -69,6 +70,7 @@ proptest! {
         let tracker = ScoreTracker {
             hints_used,
             shuffles_used,
+            undos_used: 0,
             elapsed_seconds: 0,
             pairs_matched,
         };

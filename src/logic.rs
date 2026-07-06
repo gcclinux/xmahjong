@@ -136,6 +136,7 @@ pub fn undo(state: &mut GameState) -> Result<(), UndoError> {
 
     state.selection = None;
     state.score.pairs_matched = state.score.pairs_matched.saturating_sub(1);
+    state.score.undos_used += 1;
 
     Ok(())
 }
@@ -298,6 +299,10 @@ mod tests {
             shuffles_remaining: 3,
             level: 1,
             base_score: 0,
+            base_time_ms: 0,
+            base_hints: 0,
+            base_shuffles: 0,
+            base_undos: 0,
             animations: Vec::new(),
         }
     }

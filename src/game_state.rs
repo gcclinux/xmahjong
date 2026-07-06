@@ -31,6 +31,14 @@ pub struct GameState {
     pub level: u32,
     /// Accumulated score from previous levels (carried forward on level advance).
     pub base_score: u32,
+    /// Accumulated time in milliseconds from previous levels.
+    pub base_time_ms: u64,
+    /// Accumulated hints used from previous levels.
+    pub base_hints: u32,
+    /// Accumulated shuffles used from previous levels.
+    pub base_shuffles: u32,
+    /// Accumulated undos used from previous levels.
+    pub base_undos: u32,
     /// Active animations being played.
     pub animations: Vec<Animation>,
 }
@@ -61,6 +69,8 @@ pub struct ScoreTracker {
     pub hints_used: u32,
     /// Number of shuffles used this game.
     pub shuffles_used: u32,
+    /// Number of undos used this game.
+    pub undos_used: u32,
     /// Elapsed seconds at game completion (snapshot for scoring).
     pub elapsed_seconds: u32,
     /// Number of pairs matched so far.
@@ -73,6 +83,7 @@ impl ScoreTracker {
         Self {
             hints_used: 0,
             shuffles_used: 0,
+            undos_used: 0,
             elapsed_seconds: 0,
             pairs_matched: 0,
         }
@@ -126,17 +137,26 @@ pub struct NameEntryState {
     pub text: String,
     /// The score that qualified for the leaderboard.
     pub score: u32,
-    /// The elapsed time in seconds at game completion.
+    /// The total elapsed time in seconds at game completion (across all levels).
     pub time_seconds: u32,
+    /// Total hints used across all levels.
+    pub hints_used: u32,
+    /// Total shuffles used across all levels.
+    pub shuffles_used: u32,
+    /// Total undos used across all levels.
+    pub undos_used: u32,
 }
 
 impl NameEntryState {
-    /// Creates a new name entry state with the given score and time.
-    pub fn new(score: u32, time_seconds: u32) -> Self {
+    /// Creates a new name entry state with the given score, time, and cumulative stats.
+    pub fn new(score: u32, time_seconds: u32, hints_used: u32, shuffles_used: u32, undos_used: u32) -> Self {
         Self {
             text: String::new(),
             score,
             time_seconds,
+            hints_used,
+            shuffles_used,
+            undos_used,
         }
     }
 
@@ -212,6 +232,7 @@ mod tests {
         let tracker = ScoreTracker {
             hints_used: 0,
             shuffles_used: 0,
+            undos_used: 0,
             elapsed_seconds: 100,
             pairs_matched: 72,
         };
@@ -225,6 +246,7 @@ mod tests {
         let tracker = ScoreTracker {
             hints_used: 2,
             shuffles_used: 1,
+            undos_used: 0,
             elapsed_seconds: 120,
             pairs_matched: 72,
         };
@@ -238,6 +260,7 @@ mod tests {
         let tracker = ScoreTracker {
             hints_used: 100,
             shuffles_used: 100,
+            undos_used: 0,
             elapsed_seconds: 9999,
             pairs_matched: 0,
         };
@@ -250,6 +273,7 @@ mod tests {
         let tracker = ScoreTracker {
             hints_used: 0,
             shuffles_used: 0,
+            undos_used: 0,
             elapsed_seconds: 0,
             pairs_matched: 0,
         };
@@ -262,6 +286,7 @@ mod tests {
         let tracker = ScoreTracker {
             hints_used: 0,
             shuffles_used: 0,
+            undos_used: 0,
             elapsed_seconds: 0,
             pairs_matched: 5,
         };
@@ -271,7 +296,7 @@ mod tests {
 
     #[test]
     fn name_entry_new_creates_empty_state() {
-        let entry = NameEntryState::new(500, 120);
+        let entry = NameEntryState::new(500, 120, 0, 0, 0);
         assert_eq!(entry.text, "");
         assert_eq!(entry.score, 500);
         assert_eq!(entry.time_seconds, 120);
@@ -280,7 +305,7 @@ mod tests {
 
     #[test]
     fn name_entry_push_char_adds_characters() {
-        let mut entry = NameEntryState::new(500, 120);
+        let mut entry = NameEntryState::new(500, 120, 0, 0, 0);
         assert!(entry.push_char('A'));
         assert!(entry.push_char('l'));
         assert!(entry.push_char('i'));
@@ -290,7 +315,7 @@ mod tests {
 
     #[test]
     fn name_entry_push_char_rejects_beyond_20() {
-        let mut entry = NameEntryState::new(500, 120);
+        let mut entry = NameEntryState::new(500, 120, 0, 0, 0);
         for c in "12345678901234567890".chars() {
             assert!(entry.push_char(c));
         }
@@ -304,7 +329,7 @@ mod tests {
 
     #[test]
     fn name_entry_pop_char_removes_last() {
-        let mut entry = NameEntryState::new(500, 120);
+        let mut entry = NameEntryState::new(500, 120, 0, 0, 0);
         entry.push_char('H');
         entry.push_char('i');
         assert!(entry.pop_char());
@@ -317,7 +342,7 @@ mod tests {
 
     #[test]
     fn name_entry_is_valid_checks_1_to_20_chars() {
-        let mut entry = NameEntryState::new(500, 120);
+        let mut entry = NameEntryState::new(500, 120, 0, 0, 0);
         assert!(!entry.is_valid()); // 0 chars: invalid
 
         entry.push_char('A');

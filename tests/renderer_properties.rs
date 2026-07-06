@@ -801,6 +801,10 @@ fn make_test_game_state(tile_indices: &[usize]) -> GameState {
         shuffles_remaining: 3,
         level: 1,
         base_score: 0,
+        base_time_ms: 0,
+        base_hints: 0,
+        base_shuffles: 0,
+        base_undos: 0,
         animations: Vec::new(),
     }
 }
@@ -920,6 +924,10 @@ fn hit_test_removed_tile_returns_none() {
         shuffles_remaining: 3,
         level: 1,
         base_score: 0,
+        base_time_ms: 0,
+        base_hints: 0,
+        base_shuffles: 0,
+        base_undos: 0,
         animations: Vec::new(),
     };
 

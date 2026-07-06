@@ -46,6 +46,10 @@ proptest! {
             shuffles_remaining: 3,
             level: 1,
             base_score: 0,
+            base_time_ms: 0,
+            base_hints: 0,
+            base_shuffles: 0,
+            base_undos: 0,
             animations: Vec::new(),
         };
 
@@ -96,6 +100,10 @@ fn make_state(board: lmahjong::board::Board) -> GameState {
         shuffles_remaining: 3,
         level: 1,
         base_score: 0,
+        base_time_ms: 0,
+        base_hints: 0,
+        base_shuffles: 0,
+        base_undos: 0,
         animations: Vec::new(),
     }
 }

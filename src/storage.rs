@@ -53,6 +53,15 @@ pub struct LeaderboardEntry {
     pub score: u32,
     /// Time to complete in seconds.
     pub time_seconds: u32,
+    /// Total number of hints used across all levels.
+    #[serde(default)]
+    pub hints_used: u32,
+    /// Total number of shuffles used across all levels.
+    #[serde(default)]
+    pub shuffles_used: u32,
+    /// Total number of undos used across all levels.
+    #[serde(default)]
+    pub undos_used: u32,
     /// Date of completion in ISO 8601 format.
     pub date: String,
 }
@@ -194,12 +203,27 @@ pub struct SavedGame {
     pub shuffles_remaining: u8,
     /// Number of pairs matched so far.
     pub pairs_matched: u32,
+    /// Number of undos used this level.
+    #[serde(default)]
+    pub undos_used: u32,
     /// Current level.
     #[serde(default = "default_level")]
     pub level: u32,
     /// Accumulated score from previous levels.
     #[serde(default)]
     pub base_score: u32,
+    /// Accumulated time in milliseconds from previous levels.
+    #[serde(default)]
+    pub base_time_ms: u64,
+    /// Accumulated hints used from previous levels.
+    #[serde(default)]
+    pub base_hints: u32,
+    /// Accumulated shuffles used from previous levels.
+    #[serde(default)]
+    pub base_shuffles: u32,
+    /// Accumulated undos used from previous levels.
+    #[serde(default)]
+    pub base_undos: u32,
 }
 
 /// Default level value for backwards compatibility with old save files.
@@ -261,18 +285,27 @@ mod tests {
             name: "Alice".to_string(),
             score: 500,
             time_seconds: 300,
+            hints_used: 0,
+            shuffles_used: 0,
+            undos_used: 0,
             date: "2024-01-01".to_string(),
         });
         lb.insert(LeaderboardEntry {
             name: "Bob".to_string(),
             score: 800,
             time_seconds: 200,
+            hints_used: 0,
+            shuffles_used: 0,
+            undos_used: 0,
             date: "2024-01-02".to_string(),
         });
         lb.insert(LeaderboardEntry {
             name: "Carol".to_string(),
             score: 650,
             time_seconds: 250,
+            hints_used: 0,
+            shuffles_used: 0,
+            undos_used: 0,
             date: "2024-01-03".to_string(),
         });
 
@@ -289,6 +322,9 @@ mod tests {
                 name: format!("Player{}", i),
                 score: i * 100,
                 time_seconds: 100,
+                hints_used: 0,
+                shuffles_used: 0,
+                undos_used: 0,
                 date: "2024-01-01".to_string(),
             });
         }
@@ -313,6 +349,9 @@ mod tests {
                 name: format!("P{}", i),
                 score: i * 100,
                 time_seconds: 100,
+                hints_used: 0,
+                shuffles_used: 0,
+                undos_used: 0,
                 date: "2024-01-01".to_string(),
             });
         }
@@ -354,6 +393,9 @@ mod tests {
             name: "One".to_string(),
             score: 900,
             time_seconds: 100,
+            hints_used: 0,
+            shuffles_used: 0,
+            undos_used: 0,
             date: "2024-01-01".to_string(),
         });
 
@@ -369,12 +411,18 @@ mod tests {
             name: "A".to_string(),
             score: 500,
             time_seconds: 100,
+            hints_used: 0,
+            shuffles_used: 0,
+            undos_used: 0,
             date: "2024-01-01".to_string(),
         });
         lb.insert(LeaderboardEntry {
             name: "B".to_string(),
             score: 500,
             time_seconds: 200,
+            hints_used: 0,
+            shuffles_used: 0,
+            undos_used: 0,
             date: "2024-01-02".to_string(),
         });
 

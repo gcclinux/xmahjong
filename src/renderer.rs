@@ -1282,32 +1282,44 @@ impl Renderer {
             sdl2::rect::Point::new(win_w as i32, hud_height as i32),
         ).ok();
 
-        // Divide the bar into 4 equal sections
-        let section_w = win_w as i32 / 4;
+        // Divide the bar into 5 sections
+        let section_w = win_w as i32 / 5;
 
-        // Timer display (section 1 — left)
-        let timer_text = state.timer.format_display();
+        // Timer display (section 1 — left) — total across all levels
+        let total_ms = state.base_time_ms + state.timer.elapsed_ms
+            + state.timer.last_tick.map(|t| t.elapsed().as_millis() as u64).unwrap_or(0);
+        let total_secs = (total_ms / 1000) as u32;
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+        let timer_text = format!("{:02}:{:02}", minutes, seconds);
         let timer_w = timer_text.len() as i32 * 12;
         let timer_x = (section_w - timer_w) / 2;
         self.draw_bitmap_text(&timer_text, timer_x, 12, 2, Color::RGB(100, 220, 100));
 
-        // Score display (section 2 — center-left) — total across all levels
+        // Score display (section 2) — total across all levels
         let total_score = state.base_score + state.score.live_score();
         let score_text = format!("SCORE {}", total_score);
         let score_w = score_text.len() as i32 * 12;
         let score_x = section_w + (section_w - score_w) / 2;
         self.draw_bitmap_text(&score_text, score_x, 12, 2, Color::RGB(255, 215, 0));
 
-        // Level display (section 3 — center-right)
+        // Level display (section 3 — center)
         let level_text = format!("LEVEL {}", state.level);
         let level_w = level_text.len() as i32 * 12;
         let level_x = section_w * 2 + (section_w - level_w) / 2;
         self.draw_bitmap_text(&level_text, level_x, 12, 2, Color::RGB(200, 150, 255));
 
-        // Shuffles remaining (section 4 — right)
+        // Hints used (section 4) — total across all levels
+        let total_hints = state.base_hints + state.score.hints_used;
+        let hints_text = format!("HINTS {}", total_hints);
+        let hints_w = hints_text.len() as i32 * 12;
+        let hints_x = section_w * 3 + (section_w - hints_w) / 2;
+        self.draw_bitmap_text(&hints_text, hints_x, 12, 2, Color::RGB(0, 200, 200));
+
+        // Shuffles remaining (section 5 — right)
         let shuffle_text = format!("SHUFFLE {}", state.shuffles_remaining);
         let shuffle_w = shuffle_text.len() as i32 * 12;
-        let shuffle_x = section_w * 3 + (section_w - shuffle_w) / 2;
+        let shuffle_x = section_w * 4 + (section_w - shuffle_w) / 2;
         self.draw_bitmap_text(&shuffle_text, shuffle_x, 12, 2, Color::RGB(100, 150, 255));
     }
 
@@ -1450,12 +1462,12 @@ impl Renderer {
 
         // Dialog sized to fit header + up to 10 entries + back button
         let dialog_h: u32 = 100 + (entry_count.max(1) as u32 * 28) + 70;
-        let dialog = self.draw_dialog_box(500, dialog_h);
+        let dialog = self.draw_dialog_box(620, dialog_h);
 
         // Title
         self.draw_bitmap_text(
             "LEADERBOARD",
-            dialog.x() + 150,
+            dialog.x() + 210,
             dialog.y() + 20,
             3,
             Color::RGB(255, 215, 0),
@@ -1463,8 +1475,8 @@ impl Renderer {
 
         // Column headers
         self.draw_bitmap_text(
-            "#  NAME             SCORE  TIME",
-            dialog.x() + 20,
+            "NAME          SCORE  TIME  H  S  U",
+            dialog.x() + 40,
             dialog.y() + 65,
             1,
             Color::RGB(150, 150, 150),
@@ -1473,7 +1485,7 @@ impl Renderer {
         if entry_count == 0 {
             self.draw_bitmap_text(
                 "NO SCORES YET",
-                dialog.x() + 160,
+                dialog.x() + 220,
                 dialog.y() + 100,
                 2,
                 Color::RGB(120, 120, 120),
@@ -1482,19 +1494,22 @@ impl Renderer {
             for (i, entry) in leaderboard.entries.iter().enumerate() {
                 let y = dialog.y() + 90 + (i as i32 * 28);
 
-                // Truncate name to 16 chars for display
-                let name_display: String = entry.name.chars().take(16).collect();
-                let name_padded = format!("{:<16}", name_display);
+                // Truncate name to 10 chars for display
+                let name_display: String = entry.name.chars().take(10).collect();
+                let name_padded = format!("{:<10}", name_display);
 
                 let minutes = entry.time_seconds / 60;
                 let seconds = entry.time_seconds % 60;
                 let line = format!(
-                    "{:<2} {}  {:>5}  {:02}:{:02}",
+                    "{:<2} {} {:>5}  {:02}:{:02} {:>2} {:>2} {:>2}",
                     i + 1,
                     name_padded,
                     entry.score,
                     minutes,
                     seconds,
+                    entry.hints_used,
+                    entry.shuffles_used,
+                    entry.undos_used,
                 );
 
                 let color = if i == 0 {

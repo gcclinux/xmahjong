@@ -186,6 +186,9 @@ fn main() {
                                             name: entry.text.clone(),
                                             score: entry.score,
                                             time_seconds: entry.time_seconds,
+                                            hints_used: entry.hints_used,
+                                            shuffles_used: entry.shuffles_used,
+                                            undos_used: entry.undos_used,
                                             date,
                                         };
                                         let mut leaderboard = Leaderboard::load();
@@ -324,12 +327,11 @@ fn main() {
                 match action {
                     GameAction::SelectTile(x, y) => {
                         if game_state.status == GameStatus::Playing {
-                            // Check if click is on the HUD shuffle area (top-right)
+                            // Check if click is on the HUD shuffle area (rightmost 1/5th)
                             let (win_w, _win_h) = renderer.window_size();
-                            let shuffle_text = format!("SHUFFLE {}", game_state.shuffles_remaining);
-                            let shuffle_w = shuffle_text.len() as i32 * 12;
-                            let shuffle_x = win_w as i32 - shuffle_w - 16;
-                            if y >= 0 && y < 40 && x >= shuffle_x && x < win_w as i32 {
+                            let section_w = win_w as i32 / 5;
+                            let shuffle_section_start = section_w * 4;
+                            if y >= 0 && y < 40 && x >= shuffle_section_start && x < win_w as i32 {
                                 // Clicked on shuffle in HUD
                                 match logic::shuffle(&mut game_state) {
                                     Ok(()) => {
@@ -352,8 +354,12 @@ fn main() {
                                     let score = game_state.base_score + game_state.score.calculate_score();
                                     let leaderboard = Leaderboard::load();
                                     if leaderboard.qualifies(score) {
-                                        let time_seconds = game_state.score.elapsed_seconds;
-                                        name_entry = Some(NameEntryState::new(score, time_seconds));
+                                        let total_time_ms = game_state.base_time_ms + game_state.timer.elapsed_ms;
+                                        let time_seconds = (total_time_ms / 1000) as u32;
+                                        let hints_used = game_state.base_hints + game_state.score.hints_used;
+                                        let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
+                                        let undos_used = game_state.base_undos + game_state.score.undos_used;
+                                        name_entry = Some(NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used));
                                         game_state.status = GameStatus::NameEntry;
                                     }
                                 }
@@ -463,8 +469,18 @@ fn main() {
                                 {
                                     let next_level = game_state.level + 1;
                                     let accumulated = game_state.base_score + game_state.score.calculate_score();
+                                    let accumulated_time = game_state.base_time_ms + game_state.timer.elapsed_ms;
+                                    let accumulated_hints = game_state.base_hints + game_state.score.hints_used;
+                                    let accumulated_shuffles = game_state.base_shuffles + game_state.score.shuffles_used;
+                                    let accumulated_undos = game_state.base_undos + game_state.score.undos_used;
+                                    let remaining_shuffles = game_state.shuffles_remaining;
                                     game_state = create_new_game_state_for_level(next_level);
                                     game_state.base_score = accumulated;
+                                    game_state.base_time_ms = accumulated_time;
+                                    game_state.base_hints = accumulated_hints;
+                                    game_state.base_shuffles = accumulated_shuffles;
+                                    game_state.base_undos = accumulated_undos;
+                                    game_state.shuffles_remaining = remaining_shuffles;
                                     game_state.timer.start();
                                 }
 
@@ -508,7 +524,7 @@ fn main() {
                             let leaderboard = Leaderboard::load();
                             let entry_count = leaderboard.entries.len();
                             let dialog_h: u32 = 100 + (entry_count.max(1) as u32 * 28) + 70;
-                            let dialog_w: u32 = 500;
+                            let dialog_w: u32 = 620;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
 
@@ -847,6 +863,10 @@ fn create_new_game_state_for_level(level: u32) -> GameState {
         shuffles_remaining: 30,
         level,
         base_score: 0,
+        base_time_ms: 0,
+        base_hints: 0,
+        base_shuffles: 0,
+        base_undos: 0,
         animations: Vec::new(),
     }
 }
@@ -987,8 +1007,13 @@ fn save_current_game(state: &GameState) {
         shuffles_used: state.score.shuffles_used,
         shuffles_remaining: state.shuffles_remaining,
         pairs_matched: state.score.pairs_matched,
+        undos_used: state.score.undos_used,
         level: state.level,
         base_score: state.base_score,
+        base_time_ms: state.base_time_ms,
+        base_hints: state.base_hints,
+        base_shuffles: state.base_shuffles,
+        base_undos: state.base_undos,
     };
 
     saved.save();
@@ -1041,6 +1066,7 @@ fn load_saved_game() -> Option<GameState> {
         score: ScoreTracker {
             hints_used: saved.hints_used,
             shuffles_used: saved.shuffles_used,
+            undos_used: saved.undos_used,
             elapsed_seconds: 0, // Only used at game end
             pairs_matched: saved.pairs_matched,
         },
@@ -1051,6 +1077,10 @@ fn load_saved_game() -> Option<GameState> {
         shuffles_remaining: saved.shuffles_remaining,
         level: saved.level,
         base_score: saved.base_score,
+        base_time_ms: saved.base_time_ms,
+        base_hints: saved.base_hints,
+        base_shuffles: saved.base_shuffles,
+        base_undos: saved.base_undos,
         animations: Vec::new(),
     };
 

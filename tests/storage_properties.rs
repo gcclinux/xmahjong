@@ -24,6 +24,9 @@ proptest! {
                 name: format!("Player{}", i),
                 score,
                 time_seconds: 100,
+                hints_used: 0,
+                shuffles_used: 0,
+                undos_used: 0,
                 date: "2024-01-01".to_string(),
             });
         }
