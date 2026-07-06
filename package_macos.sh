@@ -18,11 +18,11 @@ set -euo pipefail
 
 APP_NAME="lmahjong"
 APP_DISPLAY_NAME="LMahjong"
-APP_VERSION="0.1.1"
 APP_IDENTIFIER="com.lmahjong.app"
 APP_DESCRIPTION="A Tux-themed Mahjong solitaire game"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/release")"
 BUILD_DIR="$SCRIPT_DIR/target/package"
 RELEASE_BIN="$SCRIPT_DIR/target/release/$APP_NAME"
 

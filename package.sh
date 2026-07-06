@@ -15,8 +15,10 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 APP_NAME="lmahjong"
-APP_VERSION="0.1.1"
+APP_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/release")"
 APP_DESCRIPTION="A Tux-themed Mahjong solitaire game for Linux"
 APP_LICENSE="GPL-3.0-or-later"
 APP_MAINTAINER="LMahjong Developer <dev@lmahjong.local>"
@@ -30,7 +32,6 @@ case "$ARCH" in
     *)       DEB_ARCH="$ARCH"; RPM_ARCH="$ARCH" ;;
 esac
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/target/package"
 RELEASE_BIN="$SCRIPT_DIR/target/release/$APP_NAME"
 
