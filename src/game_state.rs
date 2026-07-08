@@ -52,14 +52,18 @@ pub enum GameStatus {
     Paused,
     /// Player has cleared all tiles.
     Won,
-    /// No valid moves remain.
+    /// No valid moves remain (but shuffles may still be available).
     Lost,
+    /// No valid moves AND no shuffles remaining — true game over.
+    GameOver,
     /// Main menu is displayed.
     Menu,
     /// Player is entering their name for the leaderboard.
     NameEntry,
     /// Leaderboard view is displayed.
     Leaderboard,
+    /// Shortcuts popup is displayed.
+    Shortcuts,
 }
 
 /// Tracks score-relevant statistics for the current game.

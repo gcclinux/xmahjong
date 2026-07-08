@@ -145,6 +145,13 @@ fn main() {
 
     // Track name entry state for leaderboard (active after winning with a qualifying score)
     let mut name_entry: Option<NameEntryState> = None;
+    // Track whether name entry was triggered from GameOver (vs Won)
+    let mut name_entry_from_game_over = false;
+    // Track which state to return to when leaving the leaderboard view
+    let mut leaderboard_return_status = GameStatus::Won;
+    // Track the currently selected menu item in the pause menu (0-indexed)
+    let mut pause_menu_selection: usize = 0;
+    const PAUSE_MENU_ITEM_COUNT: usize = 7;
 
     // Check for updates at startup (non-blocking: if network fails, silently skip)
     let mut update_info: Option<UpdateInfo> = check_for_update().map(|v| UpdateInfo {
@@ -194,9 +201,15 @@ fn main() {
                                         let mut leaderboard = Leaderboard::load();
                                         leaderboard.insert(lb_entry);
                                         leaderboard.save();
-                                        // Transition back to Won state
+                                        // Transition back based on origin
                                         name_entry = None;
-                                        game_state.status = GameStatus::Won;
+                                        if name_entry_from_game_over {
+                                            name_entry_from_game_over = false;
+                                            game_state = create_new_game_state();
+                                            game_state.timer.start();
+                                        } else {
+                                            game_state.status = GameStatus::Won;
+                                        }
                                     }
                                     // If not valid (empty), ignore the Enter press
                                     continue;
@@ -206,9 +219,14 @@ fn main() {
                                     continue;
                                 }
                                 sdl2::keyboard::Keycode::Escape => {
-                                    // Cancel name entry, go back to victory screen
+                                    // Cancel name entry
                                     name_entry = None;
-                                    game_state.status = GameStatus::Won;
+                                    if name_entry_from_game_over {
+                                        name_entry_from_game_over = false;
+                                        game_state.status = GameStatus::GameOver;
+                                    } else {
+                                        game_state.status = GameStatus::Won;
+                                    }
                                     continue;
                                 }
                                 _ => {
@@ -222,6 +240,112 @@ fn main() {
                         _ => {
                             continue;
                         }
+                    }
+                }
+            }
+
+            // --- Handle pause menu keyboard navigation ---
+            if game_state.status == GameStatus::Paused {
+                if let sdl2::event::Event::KeyDown { keycode: Some(keycode), .. } = &event {
+                    match *keycode {
+                        sdl2::keyboard::Keycode::Up => {
+                            if pause_menu_selection == 0 {
+                                pause_menu_selection = PAUSE_MENU_ITEM_COUNT - 1;
+                            } else {
+                                pause_menu_selection -= 1;
+                            }
+                            continue;
+                        }
+                        sdl2::keyboard::Keycode::Down => {
+                            pause_menu_selection = (pause_menu_selection + 1) % PAUSE_MENU_ITEM_COUNT;
+                            continue;
+                        }
+                        sdl2::keyboard::Keycode::Return
+                        | sdl2::keyboard::Keycode::KpEnter => {
+                            match pause_menu_selection {
+                                0 => {
+                                    // NEW GAME
+                                    game_state = create_new_game_state();
+                                    game_state.timer.start();
+                                }
+                                1 => {
+                                    // UNDO
+                                    game_state.status = GameStatus::Playing;
+                                    game_state.timer.resume();
+                                    let _ = logic::undo(&mut game_state);
+                                }
+                                2 => {
+                                    // HINT
+                                    game_state.status = GameStatus::Playing;
+                                    game_state.timer.resume();
+                                    let result = logic::request_hint(&mut game_state);
+                                    if let HintResult::NoMatchesAvailable = result {
+                                        if game_state.shuffles_remaining == 0 {
+                                            game_state.timer.pause();
+                                            game_state.score.elapsed_seconds = game_state.timer.elapsed_seconds();
+                                            game_state.status = GameStatus::GameOver;
+                                        } else {
+                                            game_state.status = GameStatus::Lost;
+                                        }
+                                    }
+                                }
+                                3 => {
+                                    // SHUFFLE
+                                    game_state.status = GameStatus::Playing;
+                                    game_state.timer.resume();
+                                    if logic::shuffle(&mut game_state).is_ok() {
+                                        audio.play_shuffle();
+                                    }
+                                }
+                                4 => {
+                                    // SHORTCUTS
+                                    game_state.status = GameStatus::Shortcuts;
+                                }
+                                5 => {
+                                    // LEADERBOARD
+                                    leaderboard_return_status = GameStatus::Paused;
+                                    game_state.status = GameStatus::Leaderboard;
+                                }
+                                6 => {
+                                    // SAVE + QUIT
+                                    save_current_game(&game_state);
+                                    break 'game_loop;
+                                }
+                                _ => {}
+                            }
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            // --- Handle leaderboard keyboard navigation ---
+            if game_state.status == GameStatus::Leaderboard {
+                if let sdl2::event::Event::KeyDown { keycode: Some(keycode), .. } = &event {
+                    match *keycode {
+                        sdl2::keyboard::Keycode::Return
+                        | sdl2::keyboard::Keycode::KpEnter
+                        | sdl2::keyboard::Keycode::Escape => {
+                            game_state.status = leaderboard_return_status;
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            // --- Handle shortcuts popup keyboard navigation ---
+            if game_state.status == GameStatus::Shortcuts {
+                if let sdl2::event::Event::KeyDown { keycode: Some(keycode), .. } = &event {
+                    match *keycode {
+                        sdl2::keyboard::Keycode::Return
+                        | sdl2::keyboard::Keycode::KpEnter
+                        | sdl2::keyboard::Keycode::Escape => {
+                            game_state.status = GameStatus::Paused;
+                            continue;
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -360,6 +484,7 @@ fn main() {
                                         let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
                                         let undos_used = game_state.base_undos + game_state.score.undos_used;
                                         name_entry = Some(NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used));
+                                        name_entry_from_game_over = false;
                                         game_state.status = GameStatus::NameEntry;
                                     }
                                 }
@@ -381,39 +506,45 @@ fn main() {
                             // Check which button was clicked
                             if x >= btn_x && x < btn_x + btn_w as i32 {
                                 if y >= start_y && y < start_y + btn_h as i32 {
-                                    // RESUME
-                                    game_state.status = GameStatus::Playing;
-                                    game_state.timer.resume();
-                                } else if y >= start_y + spacing && y < start_y + spacing + btn_h as i32 {
                                     // NEW GAME
                                     game_state = create_new_game_state();
                                     game_state.timer.start();
-                                } else if y >= start_y + spacing * 2 && y < start_y + spacing * 2 + btn_h as i32 {
+                                } else if y >= start_y + spacing && y < start_y + spacing + btn_h as i32 {
                                     // UNDO
                                     game_state.status = GameStatus::Playing;
                                     game_state.timer.resume();
                                     let _ = logic::undo(&mut game_state);
-                                } else if y >= start_y + spacing * 3 && y < start_y + spacing * 3 + btn_h as i32 {
+                                } else if y >= start_y + spacing * 2 && y < start_y + spacing * 2 + btn_h as i32 {
                                     // HINT
                                     game_state.status = GameStatus::Playing;
                                     game_state.timer.resume();
                                     let result = logic::request_hint(&mut game_state);
                                     if let HintResult::NoMatchesAvailable = result {
-                                        game_state.status = GameStatus::Lost;
+                                        if game_state.shuffles_remaining == 0 {
+                                            game_state.timer.pause();
+                                            game_state.score.elapsed_seconds = game_state.timer.elapsed_seconds();
+                                            game_state.status = GameStatus::GameOver;
+                                        } else {
+                                            game_state.status = GameStatus::Lost;
+                                        }
                                     }
-                                } else if y >= start_y + spacing * 4 && y < start_y + spacing * 4 + btn_h as i32 {
+                                } else if y >= start_y + spacing * 3 && y < start_y + spacing * 3 + btn_h as i32 {
                                     // SHUFFLE
                                     game_state.status = GameStatus::Playing;
                                     game_state.timer.resume();
                                     if logic::shuffle(&mut game_state).is_ok() {
                                         audio.play_shuffle();
                                     }
+                                } else if y >= start_y + spacing * 4 && y < start_y + spacing * 4 + btn_h as i32 {
+                                    // SHORTCUTS
+                                    game_state.status = GameStatus::Shortcuts;
                                 } else if y >= start_y + spacing * 5 && y < start_y + spacing * 5 + btn_h as i32 {
+                                    // LEADERBOARD
+                                    leaderboard_return_status = GameStatus::Paused;
+                                    game_state.status = GameStatus::Leaderboard;
+                                } else if y >= start_y + spacing * 6 && y < start_y + spacing * 6 + btn_h as i32 {
                                     // SAVE + QUIT
                                     save_current_game(&game_state);
-                                    break 'game_loop;
-                                } else if y >= start_y + spacing * 6 && y < start_y + spacing * 6 + btn_h as i32 {
-                                    // QUIT (without saving)
                                     break 'game_loop;
                                 }
                             }
@@ -443,6 +574,43 @@ fn main() {
 
                             // New Game button: y offset 164 from dialog top
                             let new_game_y = dialog_y as i32 + 164;
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= new_game_y && y < new_game_y + btn_h as i32
+                            {
+                                game_state = create_new_game_state();
+                                game_state.timer.start();
+                            }
+                        } else if game_state.status == GameStatus::GameOver {
+                            // Handle clicks on the "Game Over" dialog buttons
+                            let (win_w, win_h) = renderer.window_size();
+                            let dialog_w: u32 = 380;
+                            let dialog_h: u32 = 320;
+                            let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
+                            let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
+
+                            let btn_w: u32 = 220;
+                            let btn_h: u32 = 44;
+                            let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
+
+                            // Save Score button: y offset 210 from dialog top
+                            let save_y = dialog_y as i32 + 210;
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= save_y && y < save_y + btn_h as i32
+                            {
+                                // Transition to name entry for leaderboard
+                                let score = game_state.base_score + game_state.score.live_score();
+                                let total_time_ms = game_state.base_time_ms + game_state.timer.elapsed_ms;
+                                let time_seconds = (total_time_ms / 1000) as u32;
+                                let hints_used = game_state.base_hints + game_state.score.hints_used;
+                                let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
+                                let undos_used = game_state.base_undos + game_state.score.undos_used;
+                                name_entry = Some(NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used));
+                                name_entry_from_game_over = true;
+                                game_state.status = GameStatus::NameEntry;
+                            }
+
+                            // New Game button: y offset 264 from dialog top
+                            let new_game_y = dialog_y as i32 + 264;
                             if x >= btn_x && x < btn_x + btn_w as i32
                                 && y >= new_game_y && y < new_game_y + btn_h as i32
                             {
@@ -498,6 +666,7 @@ fn main() {
                                 if x >= btn_x && x < btn_x + btn_w as i32
                                     && y >= lb_y && y < lb_y + btn_h as i32
                                 {
+                                    leaderboard_return_status = GameStatus::Won;
                                     game_state.status = GameStatus::Leaderboard;
                                 }
                             } else {
@@ -515,6 +684,7 @@ fn main() {
                                 if x >= btn_x && x < btn_x + btn_w as i32
                                     && y >= lb_y && y < lb_y + btn_h as i32
                                 {
+                                    leaderboard_return_status = GameStatus::Won;
                                     game_state.status = GameStatus::Leaderboard;
                                 }
                             }
@@ -536,7 +706,25 @@ fn main() {
                             if x >= btn_x && x < btn_x + btn_w as i32
                                 && y >= btn_y && y < btn_y + btn_h as i32
                             {
-                                game_state.status = GameStatus::Won;
+                                game_state.status = leaderboard_return_status;
+                            }
+                        } else if game_state.status == GameStatus::Shortcuts {
+                            // Handle clicks on Shortcuts dialog (Back button)
+                            let (win_w, win_h) = renderer.window_size();
+                            let dialog_w: u32 = 420;
+                            let dialog_h: u32 = 420;
+                            let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
+                            let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
+
+                            let btn_w: u32 = 180;
+                            let btn_h: u32 = 40;
+                            let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
+                            let btn_y = dialog_y as i32 + dialog_h as i32 - 55;
+
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= btn_y && y < btn_y + btn_h as i32
+                            {
+                                game_state.status = GameStatus::Paused;
                             }
                         }
                     }
@@ -557,8 +745,14 @@ fn main() {
                         if game_state.status == GameStatus::Playing {
                             let result = logic::request_hint(&mut game_state);
                             if let HintResult::NoMatchesAvailable = result {
-                                // No moves available — transition to Lost
-                                game_state.status = GameStatus::Lost;
+                                // No moves available
+                                if game_state.shuffles_remaining == 0 {
+                                    game_state.timer.pause();
+                                    game_state.score.elapsed_seconds = game_state.timer.elapsed_seconds();
+                                    game_state.status = GameStatus::GameOver;
+                                } else {
+                                    game_state.status = GameStatus::Lost;
+                                }
                             }
                         }
                     }
@@ -590,6 +784,7 @@ fn main() {
                         if game_state.status == GameStatus::Playing {
                             game_state.status = GameStatus::Paused;
                             game_state.timer.pause();
+                            pause_menu_selection = 0;
                         }
                     }
 
@@ -676,7 +871,7 @@ fn main() {
             GameStatus::Paused => {
                 renderer.render_board(&game_state, layout_rect);
                 renderer.render_hud(&game_state);
-                renderer.render_menu();
+                renderer.render_menu(pause_menu_selection);
             }
             GameStatus::Won => {
                 renderer.render_board(&game_state, layout_rect);
@@ -688,8 +883,17 @@ fn main() {
                 renderer.render_board(&game_state, layout_rect);
                 renderer.render_no_moves();
             }
+            GameStatus::GameOver => {
+                renderer.render_board(&game_state, layout_rect);
+                let score = game_state.base_score + game_state.score.live_score();
+                let total_time_ms = game_state.base_time_ms + game_state.timer.elapsed_ms;
+                let time_seconds = (total_time_ms / 1000) as u32;
+                let hints_used = game_state.base_hints + game_state.score.hints_used;
+                let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
+                renderer.render_game_over(score, time_seconds, hints_used, shuffles_used, game_state.level);
+            }
             GameStatus::Menu => {
-                renderer.render_menu();
+                renderer.render_menu(pause_menu_selection);
             }
             GameStatus::NameEntry => {
                 renderer.render_board(&game_state, layout_rect);
@@ -700,6 +904,10 @@ fn main() {
             GameStatus::Leaderboard => {
                 renderer.render_board(&game_state, layout_rect);
                 renderer.render_leaderboard();
+            }
+            GameStatus::Shortcuts => {
+                renderer.render_board(&game_state, layout_rect);
+                renderer.render_shortcuts();
             }
         }
 
@@ -759,7 +967,13 @@ fn handle_select_tile(
                         return true;
                     }
                     GameOverReason::Lost => {
-                        state.status = GameStatus::Lost;
+                        if state.shuffles_remaining == 0 {
+                            state.timer.pause();
+                            state.score.elapsed_seconds = state.timer.elapsed_seconds();
+                            state.status = GameStatus::GameOver;
+                        } else {
+                            state.status = GameStatus::Lost;
+                        }
                     }
                 }
             }

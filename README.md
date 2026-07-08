@@ -112,7 +112,6 @@ The project includes 19 property-based tests using `proptest` that validate corr
 | Shift+U | Undo |
 | Shift+H | Hint |
 | Escape | Pause / Resume (toggle) |
-| F11 | Toggle Fullscreen |
 
 ## Scoring
 
@@ -190,35 +189,22 @@ Double-click the `.dmg` to mount it, then drag `LMahjong.app` into the Applicati
 
 ## Data Storage
 
-- **Leaderboard:** `~/.local/share/lmahjong/leaderboard.json`
-- **Settings:** `~/.local/share/lmahjong/settings.json`
-- **Saved game:** `~/.local/share/lmahjong/savegame.json`
+All game data is stored as JSON files in a platform-specific directory:
 
-## Project Structure
+| Platform | Path |
+|----------|------|
+| **Linux** | `~/.local/share/lmahjong/` |
+| **macOS** | `~/Library/Application Support/lmahjong/` |
+| **Windows** | `%APPDATA%\lmahjong\` (e.g. `C:\Users\<user>\AppData\Roaming\lmahjong\`) |
 
-```
-src/
-├── main.rs          # Game loop and SDL2 initialization
-├── lib.rs           # Module exports
-├── board.rs         # Tile layout, positions, free-tile detection
-├── generator.rs     # Reverse-deal solvable board generation
-├── logic.rs         # Selection, matching, undo, shuffle, hints
-├── game_state.rs    # Central game state and types
-├── timer.rs         # Elapsed time tracking with pause
-├── renderer.rs      # SDL2 rendering, layout scaling, UI overlays
-├── input.rs         # Event processing and keyboard shortcuts
-├── audio.rs         # SDL2_mixer audio with graceful degradation
-└── storage.rs       # Leaderboard and settings persistence
-tests/
-├── board_properties.rs      # Properties 1, 4
-├── generator_properties.rs  # Properties 2, 3
-├── logic_properties.rs      # Properties 5-11
-├── shuffle_properties.rs    # Properties 12-14
-├── timer_properties.rs      # Property 15
-├── score_properties.rs      # Property 16
-├── storage_properties.rs    # Properties 17, 18
-└── renderer_properties.rs   # Property 19
-```
+### Files
+
+| File | Description |
+|------|-------------|
+| `leaderboard.json` | Top 10 scores with player name, score, time, hints used, shuffles used, undos used, and date |
+| `settings.json` | Persistent settings (muted state) |
+| `savegame.json` | In-progress game state for resuming later (deleted after loading) |
+
 
 ## License
 

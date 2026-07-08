@@ -1331,8 +1331,8 @@ impl Renderer {
     /// - Hint (cyan)
     /// - Shuffle (purple)
     /// - Mute toggle (orange)
-    /// - Quit (red)
-    pub fn render_menu(&mut self) {
+    /// - Save + Quit (orange)
+    pub fn render_menu(&mut self, selected: usize) {
         self.draw_overlay_backdrop();
 
         let dialog = self.draw_dialog_box(300, 440);
@@ -1352,26 +1352,29 @@ impl Renderer {
         let start_y = dialog.y() + 60;
         let spacing: i32 = 50;
 
-        // Resume button (bright green)
-        self.draw_labeled_button(btn_x, start_y, btn_w, btn_h, Color::RGB(40, 160, 80), "RESUME");
+        let buttons: &[(Color, &str)] = &[
+            (Color::RGB(50, 140, 70), "NEW GAME"),
+            (Color::RGB(50, 100, 180), "UNDO"),
+            (Color::RGB(50, 160, 170), "HINT"),
+            (Color::RGB(120, 60, 160), "SHUFFLE"),
+            (Color::RGB(100, 140, 100), "SHORTCUTS"),
+            (Color::RGB(50, 100, 180), "LEADERBOARD"),
+            (Color::RGB(200, 130, 50), "SAVE + QUIT"),
+        ];
 
-        // New Game button (green)
-        self.draw_labeled_button(btn_x, start_y + spacing, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+        for (i, (color, label)) in buttons.iter().enumerate() {
+            let y = start_y + spacing * i as i32;
+            self.draw_labeled_button(btn_x, y, btn_w, btn_h, *color, label);
 
-        // Undo button (blue)
-        self.draw_labeled_button(btn_x, start_y + spacing * 2, btn_w, btn_h, Color::RGB(50, 100, 180), "UNDO");
-
-        // Hint button (cyan)
-        self.draw_labeled_button(btn_x, start_y + spacing * 3, btn_w, btn_h, Color::RGB(50, 160, 170), "HINT");
-
-        // Shuffle button (purple)
-        self.draw_labeled_button(btn_x, start_y + spacing * 4, btn_w, btn_h, Color::RGB(120, 60, 160), "SHUFFLE");
-
-        // Save + Quit button (orange)
-        self.draw_labeled_button(btn_x, start_y + spacing * 5, btn_w, btn_h, Color::RGB(200, 130, 50), "SAVE + QUIT");
-
-        // Quit button (red)
-        self.draw_labeled_button(btn_x, start_y + spacing * 6, btn_w, btn_h, Color::RGB(180, 50, 50), "QUIT");
+            if i == selected {
+                // Draw a bright white selection border around the highlighted button
+                let sel_rect = Rect::new(btn_x - 2, y - 2, btn_w + 4, btn_h + 4);
+                self.canvas.set_draw_color(Color::RGB(255, 255, 255));
+                self.canvas.draw_rect(sel_rect).ok();
+                let sel_rect_inner = Rect::new(btn_x - 1, y - 1, btn_w + 2, btn_h + 2);
+                self.canvas.draw_rect(sel_rect_inner).ok();
+            }
+        }
 
         // Shortcut hints at bottom
         self.draw_bitmap_text(
@@ -1381,6 +1384,58 @@ impl Renderer {
             1,
             Color::RGB(120, 120, 140),
         );
+    }
+
+    /// Renders the shortcuts popup showing all keyboard shortcuts.
+    pub fn render_shortcuts(&mut self) {
+        self.draw_overlay_backdrop();
+
+        let dialog = self.draw_dialog_box(420, 420);
+
+        // Title
+        self.draw_bitmap_text(
+            "SHORTCUTS",
+            dialog.x() + 140,
+            dialog.y() + 16,
+            3,
+            Color::RGB(255, 215, 0),
+        );
+
+        let x_key = dialog.x() + 20;
+        let x_action = dialog.x() + 200;
+        let mut y = dialog.y() + 58;
+        let line_h: i32 = 24;
+        let key_color = Color::RGB(150, 220, 255);
+        let action_color = Color::RGB(200, 200, 210);
+
+        let shortcuts: &[(&str, &str)] = &[
+            ("LEFT CLICK", "SELECT TILE"),
+            ("CTRL+S", "SAVE GAME"),
+            ("CTRL+Q", "SAVE + QUIT"),
+            ("CTRL+N", "NEW GAME"),
+            ("CTRL+R", "RESUME"),
+            ("CTRL+P", "PAUSE"),
+            ("CTRL+M", "TOGGLE MUTE"),
+            ("SHIFT+S", "SHUFFLE"),
+            ("SHIFT+U", "UNDO"),
+            ("SHIFT+H", "HINT"),
+            ("ESCAPE", "PAUSE / RESUME"),
+            ("UP/DOWN", "NAVIGATE MENU"),
+            ("ENTER", "SELECT MENU ITEM"),
+        ];
+
+        for (key, action) in shortcuts {
+            self.draw_bitmap_text(key, x_key, y, 2, key_color);
+            self.draw_bitmap_text(action, x_action, y, 2, action_color);
+            y += line_h;
+        }
+
+        // Back button
+        let btn_w: u32 = 180;
+        let btn_h: u32 = 40;
+        let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
+        let btn_y = dialog.y() + 420 - 55;
+        self.draw_labeled_button(btn_x, btn_y, btn_w, btn_h, Color::RGB(100, 100, 100), "BACK");
     }
 
     /// Renders the victory overlay showing final time and score.
@@ -1473,12 +1528,16 @@ impl Renderer {
             Color::RGB(255, 215, 0),
         );
 
-        // Column headers
+        // Column headers (same scale and x-offset as entries for alignment)
+        let header = format!(
+            "{:<2} {:<10} {:>5}  {:>5} {:>2} {:>2} {:>2}",
+            "#", "NAME", "SCORE", "TIME", "H", "S", "U"
+        );
         self.draw_bitmap_text(
-            "NAME          SCORE  TIME  H  S  U",
-            dialog.x() + 40,
+            &header,
+            dialog.x() + 20,
             dialog.y() + 65,
-            1,
+            2,
             Color::RGB(150, 150, 150),
         );
 
@@ -1572,6 +1631,93 @@ impl Renderer {
 
         // New Game button (green)
         self.draw_labeled_button(btn_x, dialog.y() + 164, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+    }
+
+    /// Renders the game over dialog when no moves and no shuffles remain.
+    ///
+    /// Displays final stats (score, time, hints, shuffles, level) and offers:
+    /// - Save Score (to enter name for leaderboard)
+    /// - New Game
+    pub fn render_game_over(&mut self, score: u32, time_seconds: u32, hints_used: u32, shuffles_used: u32, level: u32) {
+        self.draw_overlay_backdrop();
+
+        let dialog = self.draw_dialog_box(380, 320);
+
+        // "GAME OVER" title (red)
+        self.draw_bitmap_text(
+            "GAME OVER",
+            dialog.x() + 105,
+            dialog.y() + 20,
+            3,
+            Color::RGB(255, 80, 80),
+        );
+
+        // Explanatory text
+        self.draw_bitmap_text(
+            "NO MOVES OR SHUFFLES LEFT",
+            dialog.x() + 30,
+            dialog.y() + 62,
+            2,
+            Color::RGB(180, 180, 200),
+        );
+
+        // Stats display
+        let level_text = format!("LEVEL  {}", level);
+        self.draw_bitmap_text(
+            &level_text,
+            dialog.x() + 50,
+            dialog.y() + 100,
+            2,
+            Color::RGB(200, 200, 220),
+        );
+
+        let score_text = format!("SCORE  {}", score);
+        self.draw_bitmap_text(
+            &score_text,
+            dialog.x() + 50,
+            dialog.y() + 124,
+            2,
+            Color::RGB(255, 200, 50),
+        );
+
+        let minutes = time_seconds / 60;
+        let seconds = time_seconds % 60;
+        let time_text = format!("TIME   {:02}:{:02}", minutes, seconds);
+        self.draw_bitmap_text(
+            &time_text,
+            dialog.x() + 50,
+            dialog.y() + 148,
+            2,
+            Color::RGB(100, 220, 100),
+        );
+
+        let hints_text = format!("HINTS  {}", hints_used);
+        self.draw_bitmap_text(
+            &hints_text,
+            dialog.x() + 50,
+            dialog.y() + 172,
+            2,
+            Color::RGB(150, 180, 255),
+        );
+
+        let shuffles_text = format!("SHUFFLES  {}", shuffles_used);
+        self.draw_bitmap_text(
+            &shuffles_text,
+            dialog.x() + 200,
+            dialog.y() + 172,
+            2,
+            Color::RGB(180, 130, 255),
+        );
+
+        let btn_w: u32 = 220;
+        let btn_h: u32 = 44;
+        let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
+
+        // Save Score button (gold)
+        self.draw_labeled_button(btn_x, dialog.y() + 210, btn_w, btn_h, Color::RGB(180, 140, 30), "SAVE SCORE");
+
+        // New Game button (green)
+        self.draw_labeled_button(btn_x, dialog.y() + 264, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
     }
 
     /// Renders the name entry overlay for the leaderboard.
