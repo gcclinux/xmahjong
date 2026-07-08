@@ -1450,7 +1450,7 @@ impl Renderer {
     /// # Arguments
     /// * `time` - Formatted time string (e.g., "05:23")
     /// * `score` - Final score value
-    pub fn render_victory(&mut self, time: &str, score: u32, level: u32) {
+    pub fn render_victory(&mut self, time: &str, score: u32, level: u32, selected: usize) {
         self.draw_overlay_backdrop();
 
         let dialog_h: u32 = if level < 20 { 360 } else { 300 };
@@ -1490,21 +1490,40 @@ impl Renderer {
         let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
 
         if level < 20 {
-            // Next Level button (purple) — only shown when not at max level
-            self.draw_labeled_button(btn_x, dialog.y() + 155, btn_w, btn_h, Color::RGB(120, 60, 180), "NEXT LEVEL");
+            let buttons: &[(i32, Color, &str)] = &[
+                (155, Color::RGB(120, 60, 180), "NEXT LEVEL"),
+                (215, Color::RGB(50, 140, 70), "NEW GAME"),
+                (275, Color::RGB(50, 100, 180), "LEADERBOARD"),
+            ];
 
-            // New Game button (green)
-            self.draw_labeled_button(btn_x, dialog.y() + 215, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
-
-            // Leaderboard button (blue)
-            self.draw_labeled_button(btn_x, dialog.y() + 275, btn_w, btn_h, Color::RGB(50, 100, 180), "LEADERBOARD");
+            for (i, (y_off, color, label)) in buttons.iter().enumerate() {
+                let y = dialog.y() + y_off;
+                self.draw_labeled_button(btn_x, y, btn_w, btn_h, *color, label);
+                if i == selected {
+                    let sel_rect = Rect::new(btn_x - 2, y - 2, btn_w + 4, btn_h + 4);
+                    self.canvas.set_draw_color(Color::RGB(255, 255, 255));
+                    self.canvas.draw_rect(sel_rect).ok();
+                    let sel_rect_inner = Rect::new(btn_x - 1, y - 1, btn_w + 2, btn_h + 2);
+                    self.canvas.draw_rect(sel_rect_inner).ok();
+                }
+            }
         } else {
-            // At max level, no Next Level button
-            // New Game button (green)
-            self.draw_labeled_button(btn_x, dialog.y() + 160, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+            let buttons: &[(i32, Color, &str)] = &[
+                (160, Color::RGB(50, 140, 70), "NEW GAME"),
+                (220, Color::RGB(50, 100, 180), "LEADERBOARD"),
+            ];
 
-            // Leaderboard button (blue)
-            self.draw_labeled_button(btn_x, dialog.y() + 220, btn_w, btn_h, Color::RGB(50, 100, 180), "LEADERBOARD");
+            for (i, (y_off, color, label)) in buttons.iter().enumerate() {
+                let y = dialog.y() + y_off;
+                self.draw_labeled_button(btn_x, y, btn_w, btn_h, *color, label);
+                if i == selected {
+                    let sel_rect = Rect::new(btn_x - 2, y - 2, btn_w + 4, btn_h + 4);
+                    self.canvas.set_draw_color(Color::RGB(255, 255, 255));
+                    self.canvas.draw_rect(sel_rect).ok();
+                    let sel_rect_inner = Rect::new(btn_x - 1, y - 1, btn_w + 2, btn_h + 2);
+                    self.canvas.draw_rect(sel_rect_inner).ok();
+                }
+            }
         }
     }
 
@@ -1599,7 +1618,7 @@ impl Renderer {
     /// Options:
     /// - Shuffle (if shuffles remaining > 0)
     /// - New Game
-    pub fn render_no_moves(&mut self) {
+    pub fn render_no_moves(&mut self, selected: usize) {
         self.draw_overlay_backdrop();
 
         let dialog = self.draw_dialog_box(320, 220);
@@ -1626,11 +1645,22 @@ impl Renderer {
         let btn_h: u32 = 44;
         let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
 
-        // Shuffle button (purple)
-        self.draw_labeled_button(btn_x, dialog.y() + 110, btn_w, btn_h, Color::RGB(120, 60, 160), "SHUFFLE");
+        let buttons: &[(i32, Color, &str)] = &[
+            (110, Color::RGB(120, 60, 160), "SHUFFLE"),
+            (164, Color::RGB(50, 140, 70), "NEW GAME"),
+        ];
 
-        // New Game button (green)
-        self.draw_labeled_button(btn_x, dialog.y() + 164, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+        for (i, (y_off, color, label)) in buttons.iter().enumerate() {
+            let y = dialog.y() + y_off;
+            self.draw_labeled_button(btn_x, y, btn_w, btn_h, *color, label);
+            if i == selected {
+                let sel_rect = Rect::new(btn_x - 2, y - 2, btn_w + 4, btn_h + 4);
+                self.canvas.set_draw_color(Color::RGB(255, 255, 255));
+                self.canvas.draw_rect(sel_rect).ok();
+                let sel_rect_inner = Rect::new(btn_x - 1, y - 1, btn_w + 2, btn_h + 2);
+                self.canvas.draw_rect(sel_rect_inner).ok();
+            }
+        }
     }
 
     /// Renders the game over dialog when no moves and no shuffles remain.
@@ -1638,7 +1668,7 @@ impl Renderer {
     /// Displays final stats (score, time, hints, shuffles, level) and offers:
     /// - Save Score (to enter name for leaderboard)
     /// - New Game
-    pub fn render_game_over(&mut self, score: u32, time_seconds: u32, hints_used: u32, shuffles_used: u32, level: u32) {
+    pub fn render_game_over(&mut self, score: u32, time_seconds: u32, hints_used: u32, shuffles_used: u32, level: u32, selected: usize) {
         self.draw_overlay_backdrop();
 
         let dialog = self.draw_dialog_box(380, 320);
@@ -1713,11 +1743,22 @@ impl Renderer {
         let btn_h: u32 = 44;
         let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
 
-        // Save Score button (gold)
-        self.draw_labeled_button(btn_x, dialog.y() + 210, btn_w, btn_h, Color::RGB(180, 140, 30), "SAVE SCORE");
+        let buttons: &[(i32, Color, &str)] = &[
+            (210, Color::RGB(180, 140, 30), "SAVE SCORE"),
+            (264, Color::RGB(50, 140, 70), "NEW GAME"),
+        ];
 
-        // New Game button (green)
-        self.draw_labeled_button(btn_x, dialog.y() + 264, btn_w, btn_h, Color::RGB(50, 140, 70), "NEW GAME");
+        for (i, (y_off, color, label)) in buttons.iter().enumerate() {
+            let y = dialog.y() + y_off;
+            self.draw_labeled_button(btn_x, y, btn_w, btn_h, *color, label);
+            if i == selected {
+                let sel_rect = Rect::new(btn_x - 2, y - 2, btn_w + 4, btn_h + 4);
+                self.canvas.set_draw_color(Color::RGB(255, 255, 255));
+                self.canvas.draw_rect(sel_rect).ok();
+                let sel_rect_inner = Rect::new(btn_x - 1, y - 1, btn_w + 2, btn_h + 2);
+                self.canvas.draw_rect(sel_rect_inner).ok();
+            }
+        }
     }
 
     /// Renders the name entry overlay for the leaderboard.

@@ -152,6 +152,12 @@ fn main() {
     // Track the currently selected menu item in the pause menu (0-indexed)
     let mut pause_menu_selection: usize = 0;
     const PAUSE_MENU_ITEM_COUNT: usize = 7;
+    // Track the currently selected menu item in the victory dialog (0-indexed)
+    let mut victory_menu_selection: usize = 0;
+    // Track the currently selected item in the No Moves dialog (0=Shuffle, 1=New Game)
+    let mut lost_menu_selection: usize = 0;
+    // Track the currently selected item in the Game Over dialog (0=Save Score, 1=New Game)
+    let mut game_over_menu_selection: usize = 0;
 
     // Check for updates at startup (non-blocking: if network fails, silently skip)
     let mut update_info: Option<UpdateInfo> = check_for_update().map(|v| UpdateInfo {
@@ -350,6 +356,169 @@ fn main() {
                 }
             }
 
+            // --- Handle victory menu keyboard navigation ---
+            if game_state.status == GameStatus::Won {
+                if let sdl2::event::Event::KeyDown { keycode: Some(keycode), .. } = &event {
+                    let item_count = if game_state.level < 20 { 3usize } else { 2usize };
+                    match *keycode {
+                        sdl2::keyboard::Keycode::Up => {
+                            if victory_menu_selection == 0 {
+                                victory_menu_selection = item_count - 1;
+                            } else {
+                                victory_menu_selection -= 1;
+                            }
+                            continue;
+                        }
+                        sdl2::keyboard::Keycode::Down => {
+                            victory_menu_selection = (victory_menu_selection + 1) % item_count;
+                            continue;
+                        }
+                        sdl2::keyboard::Keycode::Return
+                        | sdl2::keyboard::Keycode::KpEnter => {
+                            if game_state.level < 20 {
+                                match victory_menu_selection {
+                                    0 => {
+                                        // NEXT LEVEL
+                                        let next_level = game_state.level + 1;
+                                        let accumulated = game_state.base_score + game_state.score.calculate_score();
+                                        let accumulated_time = game_state.base_time_ms + game_state.timer.elapsed_ms;
+                                        let accumulated_hints = game_state.base_hints + game_state.score.hints_used;
+                                        let accumulated_shuffles = game_state.base_shuffles + game_state.score.shuffles_used;
+                                        let accumulated_undos = game_state.base_undos + game_state.score.undos_used;
+                                        let remaining_shuffles = game_state.shuffles_remaining;
+                                        game_state = create_new_game_state_for_level(next_level);
+                                        game_state.base_score = accumulated;
+                                        game_state.base_time_ms = accumulated_time;
+                                        game_state.base_hints = accumulated_hints;
+                                        game_state.base_shuffles = accumulated_shuffles;
+                                        game_state.base_undos = accumulated_undos;
+                                        game_state.shuffles_remaining = remaining_shuffles;
+                                        game_state.timer.start();
+                                        victory_menu_selection = 0;
+                                    }
+                                    1 => {
+                                        // NEW GAME
+                                        game_state = create_new_game_state();
+                                        game_state.timer.start();
+                                        victory_menu_selection = 0;
+                                    }
+                                    2 => {
+                                        // LEADERBOARD
+                                        leaderboard_return_status = GameStatus::Won;
+                                        game_state.status = GameStatus::Leaderboard;
+                                    }
+                                    _ => {}
+                                }
+                            } else {
+                                match victory_menu_selection {
+                                    0 => {
+                                        // NEW GAME
+                                        game_state = create_new_game_state();
+                                        game_state.timer.start();
+                                        victory_menu_selection = 0;
+                                    }
+                                    1 => {
+                                        // LEADERBOARD
+                                        leaderboard_return_status = GameStatus::Won;
+                                        game_state.status = GameStatus::Leaderboard;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            // --- Handle No Moves (Lost) dialog keyboard navigation ---
+            if game_state.status == GameStatus::Lost {
+                if let sdl2::event::Event::KeyDown { keycode: Some(keycode), .. } = &event {
+                    match *keycode {
+                        sdl2::keyboard::Keycode::Up => {
+                            if lost_menu_selection == 0 {
+                                lost_menu_selection = 1;
+                            } else {
+                                lost_menu_selection -= 1;
+                            }
+                            continue;
+                        }
+                        sdl2::keyboard::Keycode::Down => {
+                            lost_menu_selection = (lost_menu_selection + 1) % 2;
+                            continue;
+                        }
+                        sdl2::keyboard::Keycode::Return
+                        | sdl2::keyboard::Keycode::KpEnter => {
+                            match lost_menu_selection {
+                                0 => {
+                                    // SHUFFLE
+                                    game_state.status = GameStatus::Playing;
+                                    if logic::shuffle(&mut game_state).is_ok() {
+                                        audio.play_shuffle();
+                                    }
+                                }
+                                1 => {
+                                    // NEW GAME
+                                    game_state = create_new_game_state();
+                                    game_state.timer.start();
+                                }
+                                _ => {}
+                            }
+                            lost_menu_selection = 0;
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            // --- Handle Game Over dialog keyboard navigation ---
+            if game_state.status == GameStatus::GameOver {
+                if let sdl2::event::Event::KeyDown { keycode: Some(keycode), .. } = &event {
+                    match *keycode {
+                        sdl2::keyboard::Keycode::Up => {
+                            if game_over_menu_selection == 0 {
+                                game_over_menu_selection = 1;
+                            } else {
+                                game_over_menu_selection -= 1;
+                            }
+                            continue;
+                        }
+                        sdl2::keyboard::Keycode::Down => {
+                            game_over_menu_selection = (game_over_menu_selection + 1) % 2;
+                            continue;
+                        }
+                        sdl2::keyboard::Keycode::Return
+                        | sdl2::keyboard::Keycode::KpEnter => {
+                            match game_over_menu_selection {
+                                0 => {
+                                    // SAVE SCORE
+                                    let score = game_state.base_score + game_state.score.live_score();
+                                    let total_time_ms = game_state.base_time_ms + game_state.timer.elapsed_ms;
+                                    let time_seconds = (total_time_ms / 1000) as u32;
+                                    let hints_used = game_state.base_hints + game_state.score.hints_used;
+                                    let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
+                                    let undos_used = game_state.base_undos + game_state.score.undos_used;
+                                    name_entry = Some(NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used));
+                                    name_entry_from_game_over = true;
+                                    game_state.status = GameStatus::NameEntry;
+                                }
+                                1 => {
+                                    // NEW GAME
+                                    game_state = create_new_game_state();
+                                    game_state.timer.start();
+                                }
+                                _ => {}
+                            }
+                            game_over_menu_selection = 0;
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
             let is_paused = matches!(
                 game_state.status,
                 GameStatus::Paused | GameStatus::Menu
@@ -474,6 +643,8 @@ fn main() {
                                     y,
                                 );
                                 if won {
+                                    // Reset victory menu selection
+                                    victory_menu_selection = 0;
                                     // Check if total score qualifies for leaderboard
                                     let score = game_state.base_score + game_state.score.calculate_score();
                                     let leaderboard = Leaderboard::load();
@@ -877,11 +1048,11 @@ fn main() {
                 renderer.render_board(&game_state, layout_rect);
                 let time_str = game_state.timer.format_display();
                 let score = game_state.base_score + game_state.score.calculate_score();
-                renderer.render_victory(&time_str, score, game_state.level);
+                renderer.render_victory(&time_str, score, game_state.level, victory_menu_selection);
             }
             GameStatus::Lost => {
                 renderer.render_board(&game_state, layout_rect);
-                renderer.render_no_moves();
+                renderer.render_no_moves(lost_menu_selection);
             }
             GameStatus::GameOver => {
                 renderer.render_board(&game_state, layout_rect);
@@ -890,7 +1061,7 @@ fn main() {
                 let time_seconds = (total_time_ms / 1000) as u32;
                 let hints_used = game_state.base_hints + game_state.score.hints_used;
                 let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
-                renderer.render_game_over(score, time_seconds, hints_used, shuffles_used, game_state.level);
+                renderer.render_game_over(score, time_seconds, hints_used, shuffles_used, game_state.level, game_over_menu_selection);
             }
             GameStatus::Menu => {
                 renderer.render_menu(pause_menu_selection);
