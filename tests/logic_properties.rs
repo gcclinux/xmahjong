@@ -4,13 +4,13 @@ use std::collections::HashSet;
 
 use proptest::prelude::*;
 
-use lmahjong::board::turtle_layout;
-use lmahjong::game_state::{GameState, GameStatus, ScoreTracker};
-use lmahjong::generator::BoardGenerator;
-use lmahjong::logic::{check_game_over, request_hint, select_tile, undo, GameOverReason, HintResult, SelectionResult, UndoError};
-use lmahjong::timer::GameTimer;
+use xmahjong::board::turtle_layout;
+use xmahjong::game_state::{GameState, GameStatus, ScoreTracker};
+use xmahjong::generator::BoardGenerator;
+use xmahjong::logic::{check_game_over, request_hint, select_tile, undo, GameOverReason, HintResult, SelectionResult, UndoError};
+use xmahjong::timer::GameTimer;
 
-// Feature: lmahjong, Property 7: Re-Clicking Selected Tile Deselects
+// Feature: xmahjong, Property 7: Re-Clicking Selected Tile Deselects
 //
 // **Validates: Requirements 2.6**
 //
@@ -88,7 +88,7 @@ proptest! {
 
 
 /// Helper to create a GameState from a Board in Playing status.
-fn make_state(board: lmahjong::board::Board) -> GameState {
+fn make_state(board: xmahjong::board::Board) -> GameState {
     GameState {
         board,
         timer: GameTimer::new(),
@@ -108,7 +108,7 @@ fn make_state(board: lmahjong::board::Board) -> GameState {
     }
 }
 
-// Feature: lmahjong, Property 6: Invalid Match Deselects Both Tiles
+// Feature: xmahjong, Property 6: Invalid Match Deselects Both Tiles
 //
 // **Validates: Requirements 2.4**
 //
@@ -175,7 +175,7 @@ proptest! {
 }
 
 
-// Feature: lmahjong, Property 5: Valid Match Removes Tiles and Updates Free Set
+// Feature: xmahjong, Property 5: Valid Match Removes Tiles and Updates Free Set
 //
 // **Validates: Requirements 2.3, 2.5**
 //
@@ -235,7 +235,7 @@ proptest! {
 }
 
 
-// Feature: lmahjong, Property 10: Undo Round-Trip Restores Full State
+// Feature: xmahjong, Property 10: Undo Round-Trip Restores Full State
 //
 // **Validates: Requirements 5.1, 5.4**
 //
@@ -260,7 +260,7 @@ proptest! {
         let mut state = make_state(board);
 
         // Snapshot the board tiles before the match
-        let tiles_before: Vec<Option<lmahjong::board::Tile>> = state.board.tiles.clone();
+        let tiles_before: Vec<Option<xmahjong::board::Tile>> = state.board.tiles.clone();
         let free_before: HashSet<usize> = state.board.free_tiles().into_iter().collect();
 
         // Perform the match
@@ -281,7 +281,7 @@ proptest! {
         prop_assert!(undo_result.is_ok(), "Undo should succeed after a match");
 
         // Assert the board tiles match the snapshot exactly
-        let tiles_after: Vec<Option<lmahjong::board::Tile>> = state.board.tiles.clone();
+        let tiles_after: Vec<Option<xmahjong::board::Tile>> = state.board.tiles.clone();
         prop_assert_eq!(tiles_before.len(), tiles_after.len(),
             "Board size should not change after undo");
         for (i, (before, after)) in tiles_before.iter().zip(tiles_after.iter()).enumerate() {
@@ -304,7 +304,7 @@ proptest! {
 }
 
 
-// Feature: lmahjong, Property 11: Undo Capacity Limit
+// Feature: xmahjong, Property 11: Undo Capacity Limit
 //
 // **Validates: Requirements 5.2**
 //
@@ -401,7 +401,7 @@ proptest! {
 }
 
 
-// Feature: lmahjong, Property 8: No-Moves Detection
+// Feature: xmahjong, Property 8: No-Moves Detection
 //
 // **Validates: Requirements 3.3**
 //
@@ -449,7 +449,7 @@ proptest! {
 }
 
 
-// Feature: lmahjong, Property 9: Hint Returns a Valid Pair
+// Feature: xmahjong, Property 9: Hint Returns a Valid Pair
 //
 // **Validates: Requirements 4.1**
 //

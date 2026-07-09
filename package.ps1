@@ -1,10 +1,10 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Build LMahjong for Windows: portable ZIP, MSI installer, and/or MSIX package.
+    Build xMahjong for Windows: portable ZIP, MSI installer, and/or MSIX package.
 
 .DESCRIPTION
-    package.ps1 — Windows packaging script for LMahjong.
+    package.ps1 — Windows packaging script for xMahjong.
 
     Actions (-Action):
       portable  — Release build + SDL2 DLLs bundled into a ZIP archive.
@@ -59,8 +59,8 @@ $ErrorActionPreference = 'Stop'
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-$APP_NAME        = 'lmahjong'
-$APP_DISPLAY     = 'LMahjong'
+$APP_NAME        = 'xmahjong'
+$APP_DISPLAY     = 'xMahjong'
 $APP_VERSION     = (Get-Content "$PSScriptRoot\release" -Raw).Trim()
 $APP_DESCRIPTION = 'A Tux-themed Mahjong solitaire game'
 $APP_MANUFACTURER= 'Ricardo Wagemaker'
@@ -92,7 +92,7 @@ $SDL2_RUNTIME_DLLS = @(
 # Publisher must be the exact Subject of your signing certificate.
 $MSIX_PUBLISHER         = 'CN=47955afa-afc7-46ee-abc1-02ab2632b4ad'
 $MSIX_PUBLISHER_DISPLAY = 'Ricardo Wagemaker'
-$MSIX_APP_ID            = 'LMahjong'          # No spaces, no special chars
+$MSIX_APP_ID            = 'xMahjong'          # No spaces, no special chars
 $MSIX_DESCRIPTION       = $APP_DESCRIPTION
 # Version must be 4-part (Major.Minor.Build.Revision) for MSIX
 $MSIX_VERSION           = $APP_VERSION + '.0'
@@ -532,8 +532,8 @@ function Build-Msi {
         $lines.Add('    <Icon Id="AppIcon" SourceFile="' + $icoPath + '" />')
         $lines.Add('    <Property Id="ARPPRODUCTICON" Value="AppIcon" />')
     }
-    $lines.Add('    <Property Id="ARPHELPLINK"     Value="https://github.com/gcclinux/lmahjong" />')
-    $lines.Add('    <Property Id="ARPURLINFOABOUT" Value="https://github.com/gcclinux/lmahjong" />')
+    $lines.Add('    <Property Id="ARPHELPLINK"     Value="https://github.com/gcclinux/xmahjong" />')
+    $lines.Add('    <Property Id="ARPURLINFOABOUT" Value="https://github.com/gcclinux/xmahjong" />')
     $lines.Add('    <Property Id="ARPCOMMENTS"     Value="' + $APP_DESCRIPTION + '" />')
     $lines.Add('')
     $lines.Add('    <StandardDirectory Id="ProgramFiles64Folder">')
@@ -603,7 +603,7 @@ function Build-Msi {
 
 # ─── Step 5: MSIX package ────────────────────────────────────────────────────
 #
-# Produces lmahjong-VERSION-windows-x64.msix suitable for:
+# Produces xmahjong-VERSION-windows-x64.msix suitable for:
 #   - Sideloading on Windows 10/11 (signed with a self-signed cert)
 #   - Microsoft Store submission (signed with your Partner Center certificate)
 #
@@ -799,7 +799,7 @@ function Build-Msix {
             # The Subject must match MSIX_PUBLISHER exactly.
             Write-Info "No MSIX_CERT_PFX set — generating self-signed certificate for sideloading..."
             $certSubject = $MSIX_PUBLISHER
-            $pfxPath     = Join-Path $BUILD_DIR 'lmahjong-dev.pfx'
+            $pfxPath     = Join-Path $BUILD_DIR 'xmahjong-dev.pfx'
             # Generate a random password — only needed to satisfy Export-PfxCertificate's
             # API requirement. The PFX is used immediately and the password is never stored.
             $pfxPassword = ConvertTo-SecureString -String ([System.Guid]::NewGuid().ToString()) -Force -AsPlainText
@@ -843,7 +843,7 @@ function Build-Msix {
 
 function Main {
     Write-Host ""
-    Write-Host "  LMahjong Windows Packager  v$APP_VERSION" -ForegroundColor Green
+    Write-Host "  xMahjong Windows Packager  v$APP_VERSION" -ForegroundColor Green
     Write-Host "  Action: $Action" -ForegroundColor Green
     Write-Host ""
 

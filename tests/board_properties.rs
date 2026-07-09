@@ -3,7 +3,7 @@
 use proptest::prelude::*;
 use std::collections::HashMap;
 
-use lmahjong::board::{turtle_layout, Board, Tile, TURTLE_POSITIONS};
+use xmahjong::board::{turtle_layout, Board, Tile, TURTLE_POSITIONS};
 
 /// Creates a full board (144 tiles) using a shuffled assignment of face IDs.
 /// 36 face IDs are randomly selected from 50 available, each appearing exactly 4 times.
@@ -69,7 +69,7 @@ fn partial_board_strategy() -> impl Strategy<Value = Board> {
         })
 }
 
-// Feature: lmahjong, Property 1: Board Generation Structural Invariants
+// Feature: xmahjong, Property 1: Board Generation Structural Invariants
 //
 // **Validates: Requirements 1.1, 1.3**
 //
@@ -160,7 +160,7 @@ proptest! {
     }
 }
 
-// Feature: lmahjong, Property 4: Non-Free Tile Selection Is Ignored
+// Feature: xmahjong, Property 4: Non-Free Tile Selection Is Ignored
 //
 // **Validates: Requirements 2.2**
 //

@@ -2,14 +2,14 @@
 
 use proptest::prelude::*;
 
-use lmahjong::board::turtle_layout;
-use lmahjong::game_state::{GameState, GameStatus, ScoreTracker};
-use lmahjong::generator::BoardGenerator;
-use lmahjong::logic::{select_tile, shuffle, SelectionResult, ShuffleError};
-use lmahjong::timer::GameTimer;
+use xmahjong::board::turtle_layout;
+use xmahjong::game_state::{GameState, GameStatus, ScoreTracker};
+use xmahjong::generator::BoardGenerator;
+use xmahjong::logic::{select_tile, shuffle, SelectionResult, ShuffleError};
+use xmahjong::timer::GameTimer;
 
 /// Helper to create a GameState from a Board in Playing status.
-fn make_state(board: lmahjong::board::Board) -> GameState {
+fn make_state(board: xmahjong::board::Board) -> GameState {
     GameState {
         board,
         timer: GameTimer::new(),
@@ -29,7 +29,7 @@ fn make_state(board: lmahjong::board::Board) -> GameState {
     }
 }
 
-// Feature: lmahjong, Property 14: Shuffle State Management
+// Feature: xmahjong, Property 14: Shuffle State Management
 //
 // **Validates: Requirements 6.4, 6.5**
 //
@@ -116,7 +116,7 @@ proptest! {
 }
 
 
-// Feature: lmahjong, Property 13: Shuffle Guarantees Valid Pair Exists
+// Feature: xmahjong, Property 13: Shuffle Guarantees Valid Pair Exists
 //
 // **Validates: Requirements 6.2**
 //

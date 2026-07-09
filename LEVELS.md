@@ -1,6 +1,6 @@
 # Level Design
 
-LMahjong has 20 levels split into two phases: **Penguin Phase** (1-10) and **Dog Phase** (11-20).
+xMahjong has 20 levels split into two phases: **Penguin Phase** (1-10) and **Dog Phase** (11-20).
 
 ## Penguin Phase (Levels 1-10)
 

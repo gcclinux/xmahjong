@@ -78,9 +78,9 @@ const MIN_HEIGHT: u32 = 1080;
 ///    a. `<exe_dir>/assets`
 ///    b. `<exe_dir>/../../assets` (cargo target/debug or target/release)
 ///    c. `<exe_dir>/../Resources/assets` (macOS .app bundle)
-///    d. `<exe_dir>/../share/lmahjong/assets` (FHS layout)
-/// 4. `/usr/share/lmahjong/assets` (system install via .deb/.rpm)
-/// 5. `/usr/local/share/lmahjong/assets` (manual install)
+///    d. `<exe_dir>/../share/xmahjong/assets` (FHS layout)
+/// 4. `/usr/share/xmahjong/assets` (system install via .deb/.rpm)
+/// 5. `/usr/local/share/xmahjong/assets` (manual install)
 /// Falls back to "assets" (original behavior) if none found.
 fn assets_path() -> String {
     // Snap environment
@@ -119,8 +119,8 @@ fn assets_path() -> String {
                     .to_string_lossy()
                     .into_owned();
             }
-            // Also check ../share/lmahjong/assets (FHS layout: /usr/bin/../share/...)
-            let p = dir.join("../share/lmahjong/assets");
+            // Also check ../share/xmahjong/assets (FHS layout: /usr/bin/../share/...)
+            let p = dir.join("../share/xmahjong/assets");
             if p.is_dir() {
                 return p.canonicalize()
                     .unwrap_or(p)
@@ -131,7 +131,7 @@ fn assets_path() -> String {
     }
 
     // Standard system paths
-    for prefix in &["/usr/share/lmahjong/assets", "/usr/local/share/lmahjong/assets"] {
+    for prefix in &["/usr/share/xmahjong/assets", "/usr/local/share/xmahjong/assets"] {
         if std::path::Path::new(prefix).is_dir() {
             return prefix.to_string();
         }
@@ -388,7 +388,7 @@ pub struct UiTextures {
     pub loaded: bool,
 }
 
-/// The main renderer for LMahjong.
+/// The main renderer for xMahjong.
 ///
 /// Manages the SDL2 window, canvas, loaded textures, fonts, and placeholder assets.
 ///
@@ -481,7 +481,7 @@ impl Renderer {
 
         // Create window with detected size, resizable flag
         let mut window = video_subsystem
-            .window("LMahjong", initial_width, initial_height)
+            .window("xMahjong", initial_width, initial_height)
             .resizable()
             .position_centered()
             .build()
@@ -544,7 +544,7 @@ impl Renderer {
             }
             Err(_) => {
                 eprintln!(
-                    "[LMahjong] Warning: Window icon not found at '{}'. Using default icon.",
+                    "[xMahjong] Warning: Window icon not found at '{}'. Using default icon.",
                     icon_path
                 );
             }
@@ -574,7 +574,7 @@ impl Renderer {
                 Err(e) => {
                     textures.push(None);
                     eprintln!(
-                        "[LMahjong] Warning: Tile texture not found: '{}'. Using placeholder. ({})",
+                        "[xMahjong] Warning: Tile texture not found: '{}'. Using placeholder. ({})",
                         path, e
                     );
                 }
@@ -605,7 +605,7 @@ impl Renderer {
             true
         } else {
             eprintln!(
-                "[LMahjong] Warning: Tile back texture not found: '{}'. Using placeholder color.",
+                "[xMahjong] Warning: Tile back texture not found: '{}'. Using placeholder color.",
                 path
             );
             false
@@ -622,7 +622,7 @@ impl Renderer {
             }
             Err(_) => {
                 eprintln!(
-                    "[LMahjong] Warning: Background texture not found: '{}'. Using solid color.",
+                    "[xMahjong] Warning: Background texture not found: '{}'. Using solid color.",
                     path
                 );
                 (false, None)
@@ -637,7 +637,7 @@ impl Renderer {
             UiTextures { loaded: true }
         } else {
             eprintln!(
-                "[LMahjong] Warning: UI textures directory not found: '{}'. Using fallback rendering.",
+                "[xMahjong] Warning: UI textures directory not found: '{}'. Using fallback rendering.",
                 ui_path
             );
             UiTextures { loaded: false }
@@ -1129,7 +1129,7 @@ impl Renderer {
             Ok(font) => Some(font),
             Err(e) => {
                 eprintln!(
-                    "[LMahjong] Warning: Could not load font '{}': {}. Text rendering disabled.",
+                    "[xMahjong] Warning: Could not load font '{}': {}. Text rendering disabled.",
                     font_path, e
                 );
                 None

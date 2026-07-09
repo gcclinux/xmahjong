@@ -2,9 +2,9 @@
 
 use proptest::prelude::*;
 
-use lmahjong::game_state::ScoreTracker;
+use xmahjong::game_state::ScoreTracker;
 
-// Feature: lmahjong, Property 16: Score Calculation
+// Feature: xmahjong, Property 16: Score Calculation
 //
 // Score starts at 0 and increases with each pair matched.
 // Formula:

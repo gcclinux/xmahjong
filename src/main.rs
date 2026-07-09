@@ -1,4 +1,4 @@
-//! LMahjong - A Tux-themed Mahjong solitaire game for Linux.
+//! xMahjong - A Tux-themed Mahjong solitaire game for Linux.
 //!
 //! Main entry point: initializes SDL2, creates all game components,
 //! and runs the game loop at ~60 FPS.
@@ -7,15 +7,15 @@ use std::time::{Duration, Instant};
 
 use sdl2::rect::Rect;
 
-use lmahjong::audio::AudioManager;
-use lmahjong::board::turtle_layout;
-use lmahjong::game_state::{GameState, GameStatus, NameEntryState, ScoreTracker};
-use lmahjong::generator::BoardGenerator;
-use lmahjong::input::{GameAction, InputHandler};
-use lmahjong::logic::{self, GameOverReason, HintResult, SelectionResult};
-use lmahjong::renderer::{self, Renderer};
-use lmahjong::storage::{Leaderboard, LeaderboardEntry, SavedGame, Settings};
-use lmahjong::timer::GameTimer;
+use xmahjong::audio::AudioManager;
+use xmahjong::board::turtle_layout;
+use xmahjong::game_state::{GameState, GameStatus, NameEntryState, ScoreTracker};
+use xmahjong::generator::BoardGenerator;
+use xmahjong::input::{GameAction, InputHandler};
+use xmahjong::logic::{self, GameOverReason, HintResult, SelectionResult};
+use xmahjong::renderer::{self, Renderer};
+use xmahjong::storage::{Leaderboard, LeaderboardEntry, SavedGame, Settings};
+use xmahjong::timer::GameTimer;
 
 /// Target frame duration for ~60 FPS (16.67ms per frame).
 const FRAME_DURATION_MS: u64 = 16;
@@ -24,14 +24,14 @@ const FRAME_DURATION_MS: u64 = 16;
 const HINT_DISMISS_SECS: u64 = 3;
 
 /// Current application version (read from the `release` file at compile time).
-const CURRENT_VERSION: &str = env!("LMAHJONG_VERSION");
+const CURRENT_VERSION: &str = env!("XMAHJONG_VERSION");
 
 /// URL to fetch the latest version number.
 const VERSION_CHECK_URL: &str =
-    "https://raw.githubusercontent.com/gcclinux/lmahjong/refs/heads/main/release";
+    "https://raw.githubusercontent.com/gcclinux/xmahjong/refs/heads/main/release";
 
 /// URL to open for downloading the latest release.
-const RELEASE_DOWNLOAD_URL: &str = "https://github.com/gcclinux/lmahjong/releases/latest";
+const RELEASE_DOWNLOAD_URL: &str = "https://github.com/gcclinux/xmahjong/releases/latest";
 
 /// State for the update-available dialog shown at startup.
 struct UpdateInfo {
@@ -1266,7 +1266,7 @@ fn expire_animations(state: &mut GameState) {
     let now = Instant::now();
     state.animations.retain(|anim| {
         match anim {
-            lmahjong::game_state::Animation::TileRemoval {
+            xmahjong::game_state::Animation::TileRemoval {
                 start_time,
                 duration_ms,
                 ..
@@ -1274,7 +1274,7 @@ fn expire_animations(state: &mut GameState) {
                 let elapsed = now.duration_since(*start_time).as_millis() as u32;
                 elapsed < *duration_ms
             }
-            lmahjong::game_state::Animation::TileMismatch {
+            xmahjong::game_state::Animation::TileMismatch {
                 start_time,
                 duration_ms,
                 ..
@@ -1282,12 +1282,12 @@ fn expire_animations(state: &mut GameState) {
                 let elapsed = now.duration_since(*start_time).as_millis() as u32;
                 elapsed < *duration_ms
             }
-            lmahjong::game_state::Animation::HintPulse { start_time, .. } => {
+            xmahjong::game_state::Animation::HintPulse { start_time, .. } => {
                 // Keep hint pulse active while hint is displayed (managed by hint auto-dismiss)
                 let elapsed = now.duration_since(*start_time).as_secs();
                 elapsed < HINT_DISMISS_SECS
             }
-            lmahjong::game_state::Animation::Shuffle {
+            xmahjong::game_state::Animation::Shuffle {
                 start_time,
                 duration_ms,
                 ..
@@ -1327,7 +1327,7 @@ fn toggle_fullscreen(renderer: &mut Renderer) {
     };
 
     if let Err(e) = window.set_fullscreen(new_state) {
-        eprintln!("[LMahjong] Warning: Failed to toggle fullscreen: {}", e);
+        eprintln!("[xMahjong] Warning: Failed to toggle fullscreen: {}", e);
         // Graceful fallback: remain in current mode, no crash
         return;
     }
@@ -1407,15 +1407,15 @@ fn save_current_game(state: &GameState) {
 /// Loads a saved game from disk and reconstructs the GameState.
 /// Returns None if loading fails.
 fn load_saved_game() -> Option<GameState> {
-    use lmahjong::board::{Board, Tile, turtle_layout};
-    use lmahjong::logic::UndoEntry;
+    use xmahjong::board::{Board, Tile, turtle_layout};
+    use xmahjong::logic::UndoEntry;
 
     let saved = SavedGame::load()?;
     let layout = turtle_layout();
 
     // Validate tile count matches layout
     if saved.tiles.len() != layout.positions.len() {
-        eprintln!("[LMahjong] Save file has wrong tile count, ignoring.");
+        eprintln!("[xMahjong] Save file has wrong tile count, ignoring.");
         return None;
     }
 

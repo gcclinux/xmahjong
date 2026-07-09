@@ -1,11 +1,11 @@
 //! Property-based tests for renderer layout scaling.
 //!
-//! Feature: lmahjong, Property 19: Layout Scaling Preserves Aspect Ratio
+//! Feature: xmahjong, Property 19: Layout Scaling Preserves Aspect Ratio
 
-use lmahjong::renderer::{compute_layout_rect, HUD_BAR_HEIGHT, LAYOUT_GRID_HEIGHT, LAYOUT_GRID_WIDTH};
+use xmahjong::renderer::{compute_layout_rect, HUD_BAR_HEIGHT, LAYOUT_GRID_HEIGHT, LAYOUT_GRID_WIDTH};
 use proptest::prelude::*;
 
-// Feature: lmahjong, Property 19: Layout Scaling Preserves Aspect Ratio
+// Feature: xmahjong, Property 19: Layout Scaling Preserves Aspect Ratio
 // Validates: Requirements 12.2
 proptest! {
     #[test]
@@ -84,7 +84,7 @@ proptest! {
         window_width in 800u32..=3840,
         window_height in 600u32..=2160
     ) {
-        use lmahjong::renderer::compute_thickness;
+        use xmahjong::renderer::compute_thickness;
 
         let metrics = compute_layout_rect(window_width, window_height);
         let thickness = compute_thickness(&metrics);
@@ -117,7 +117,7 @@ proptest! {
     }
 }
 
-use lmahjong::renderer::shade_color;
+use xmahjong::renderer::shade_color;
 use sdl2::pixels::Color;
 
 // Feature: tile-3d-rendering, Property 4: Side face color channel scaling
@@ -168,8 +168,8 @@ proptest! {
 // Feature: tile-3d-rendering, Property 3: Layer offset equals layer times thickness
 // **Validates: Requirements 3.1, 3.4**
 
-use lmahjong::board::TilePosition;
-use lmahjong::renderer::{compute_thickness, tile_screen_rect};
+use xmahjong::board::TilePosition;
+use xmahjong::renderer::{compute_thickness, tile_screen_rect};
 
 proptest! {
     #[test]
@@ -224,7 +224,7 @@ proptest! {
         b in 11u8..=255,
         factor in 0.10f32..=0.30
     ) {
-        use lmahjong::renderer::shade_color;
+        use xmahjong::renderer::shade_color;
         use sdl2::pixels::Color;
 
         let base = Color::RGB(r, g, b);
@@ -634,7 +634,7 @@ proptest! {
 // Feature: tile-3d-rendering, Property 10: Highlight color propagation to side faces
 // **Validates: Requirements 5.1, 5.2, 5.3, 5.5**
 
-use lmahjong::renderer::{side_face_base_color, TileHighlight};
+use xmahjong::renderer::{side_face_base_color, TileHighlight};
 
 proptest! {
     #[test]
@@ -773,10 +773,10 @@ proptest! {
 // Validates: Requirements 6.1, 6.2, 6.3, 6.4, 7.4
 // =============================================================================
 
-use lmahjong::board::{Board, Tile, turtle_layout};
-use lmahjong::game_state::{GameState, GameStatus, ScoreTracker};
-use lmahjong::renderer::hit_test;
-use lmahjong::timer::GameTimer;
+use xmahjong::board::{Board, Tile, turtle_layout};
+use xmahjong::game_state::{GameState, GameStatus, ScoreTracker};
+use xmahjong::renderer::hit_test;
+use xmahjong::timer::GameTimer;
 
 /// Helper to create a minimal GameState with tiles placed at specific positions.
 fn make_test_game_state(tile_indices: &[usize]) -> GameState {

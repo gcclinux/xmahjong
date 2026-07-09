@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# package_macos.sh — Build LMahjong and create a self-contained macOS .app bundle.
+# package_macos.sh — Build xMahjong and create a self-contained macOS .app bundle.
 #
 # The resulting .app includes all SDL2 dylibs so end-users do NOT need
 # Homebrew or any other package manager. Just drag and run.
@@ -16,9 +16,9 @@
 #
 set -euo pipefail
 
-APP_NAME="lmahjong"
-APP_DISPLAY_NAME="LMahjong"
-APP_IDENTIFIER="com.lmahjong.app"
+APP_NAME="xmahjong"
+APP_DISPLAY_NAME="xMahjong"
+APP_IDENTIFIER="com.xmahjong.app"
 APP_DESCRIPTION="A Tux-themed Mahjong solitaire game"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -238,7 +238,7 @@ build_app() {
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2024 LMahjong. GPL-3.0-or-later.</string>
+    <string>Copyright © 2024 xMahjong. GPL-3.0-or-later.</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.board-games</string>
 </dict>

@@ -2,10 +2,10 @@
 
 use proptest::prelude::*;
 
-use lmahjong::board::turtle_layout;
-use lmahjong::generator::BoardGenerator;
+use xmahjong::board::turtle_layout;
+use xmahjong::generator::BoardGenerator;
 
-// Feature: lmahjong, Property 2: Generated Boards Are Solvable
+// Feature: xmahjong, Property 2: Generated Boards Are Solvable
 //
 // **Validates: Requirements 1.2**
 //
@@ -85,7 +85,7 @@ proptest! {
 }
 
 
-// Feature: lmahjong, Property 3: Board Generation Randomness
+// Feature: xmahjong, Property 3: Board Generation Randomness
 //
 // **Validates: Requirements 1.3**
 //

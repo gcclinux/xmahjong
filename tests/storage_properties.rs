@@ -2,9 +2,9 @@
 
 use proptest::prelude::*;
 
-use lmahjong::storage::{Leaderboard, LeaderboardEntry};
+use xmahjong::storage::{Leaderboard, LeaderboardEntry};
 
-// Feature: lmahjong, Property 17: Leaderboard Invariants
+// Feature: xmahjong, Property 17: Leaderboard Invariants
 //
 // **Validates: Requirements 8.3**
 //
@@ -62,9 +62,9 @@ proptest! {
     }
 }
 
-use lmahjong::storage::Settings;
+use xmahjong::storage::Settings;
 
-// Feature: lmahjong, Property 18: Mute State Persistence Round-Trip
+// Feature: xmahjong, Property 18: Mute State Persistence Round-Trip
 //
 // **Validates: Requirements 11.5**
 //

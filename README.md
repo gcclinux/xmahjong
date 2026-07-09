@@ -1,10 +1,10 @@
-# LMahjong
+# xMahjong
 
 A Tux-themed Mahjong solitaire game for Linux, built with Rust and SDL2.
 
 ## About
 
-LMahjong is a classic tile-matching solitaire game featuring Tux penguin-themed graphics. Clear all 144 tiles from the board by matching pairs of free tiles. The game uses the traditional Turtle layout with 5 stacked layers, and every generated board is guaranteed to be solvable.
+xMahjong is a classic tile-matching solitaire game featuring Tux penguin-themed graphics. Clear all 144 tiles from the board by matching pairs of free tiles. The game uses the traditional Turtle layout with 5 stacked layers, and every generated board is guaranteed to be solvable.
 
 ![Initial board](assets/board-example.png)
 
@@ -67,7 +67,7 @@ brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf pkg-config
 LIBRARY_PATH="/opt/homebrew/lib" cargo build --release
 ```
 
-The binary is output to `target/debug/lmahjong` or `target/release/lmahjong`.
+The binary is output to `target/debug/xmahjong` or `target/release/xmahjong`.
 
 ## Running
 
@@ -152,40 +152,41 @@ Output goes to `target/package/`.
 
 **.deb (Ubuntu/Debian):**
 ```bash
-sudo apt install ./target/package/lmahjong_0.1.0_amd64.deb
+sudo apt install ./target/package/xmahjong_0.1.0_amd64.deb
 ```
 This automatically installs SDL2 runtime dependencies via apt.
 
 **.rpm (Fedora/RHEL):**
 ```bash
-sudo dnf install ./target/package/lmahjong-0.1.0-1.x86_64.rpm
+sudo dnf install ./target/package/xmahjong-0.1.0-1.x86_64.rpm
 ```
 This automatically installs SDL2 runtime dependencies via dnf.
 
 **AppImage (any distro):**
 ```bash
-chmod +x target/package/lmahjong-0.1.0-x86_64.AppImage
-./target/package/lmahjong-0.1.0-x86_64.AppImage
+chmod +x target/package/xmahjong-0.1.0-x86_64.AppImage
+./target/package/xmahjong-0.1.0-x86_64.AppImage
 ```
 AppImages bundle SDL2 libraries inside, so no system dependencies are needed.
 
 **macOS (.app bundle):**
 ```bash
-cp -R LMahjong-0.1.0-aarch64.app /Applications/
-open /Applications/LMahjong-0.1.0-aarch64.app
+cp -R xMahjong-0.1.0-aarch64.app /Applications/
+open /Applications/xMahjong-0.1.0-aarch64.app
 ```
 Copy the `.app` to your Applications folder and launch it. The app bundle includes all SDL2 libraries — no Homebrew or other dependencies required.
 
 **macOS (.dmg disk image):**
 ```bash
-open LMahjong-0.1.0-arm64.dmg
+open xMahjong-0.1.0-arm64.dmg
 ```
-Double-click the `.dmg` to mount it, then drag `LMahjong.app` into the Applications folder. No additional dependencies are needed.
+Double-click the `.dmg` to mount it, then drag `xMahjong.app` into the Applications folder. No additional dependencies are needed.
 
 ## Assets
 
-![Tux Penguin Sprite Sheet](sprite/tux-sprite-lmahjong.png)
-![Puppy Sprite Sheet](sprite/puppy-sprite-lmahjong.png)
+![Tux Penguin Sprite Sheet](sprite/tux-sprite-xmahjong.png)
+![Puppy Sprite Sheet](sprite/puppy-sprite-xmahjong.png)
+![Space Sprite Sheet](sprite/space-sprite-xmahjong.png)
 
 ## Data Storage
 
@@ -193,9 +194,9 @@ All game data is stored as JSON files in a platform-specific directory:
 
 | Platform | Path |
 |----------|------|
-| **Linux** | `~/.local/share/lmahjong/` |
-| **macOS** | `~/Library/Application Support/lmahjong/` |
-| **Windows** | `%APPDATA%\lmahjong\` (e.g. `C:\Users\<user>\AppData\Roaming\lmahjong\`) |
+| **Linux** | `~/.local/share/xmahjong/` |
+| **macOS** | `~/Library/Application Support/xmahjong/` |
+| **Windows** | `%APPDATA%\xmahjong\` (e.g. `C:\Users\<user>\AppData\Roaming\xmahjong\`) |
 
 ### Files
 

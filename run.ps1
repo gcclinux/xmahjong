@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Build (debug or release) and run LMahjong with SDL2 DLLs on PATH.
+    Build (debug or release) and run xMahjong with SDL2 DLLs on PATH.
 
 .PARAMETER Release
     Build and run in release mode. Default is debug.
@@ -40,7 +40,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Run
 $profile = if ($Release) { 'release' } else { 'debug' }
-$exe = Join-Path $ScriptDir "target\$profile\lmahjong.exe"
+$exe = Join-Path $ScriptDir "target\$profile\xmahjong.exe"
 
 Write-Host "Running: $exe" -ForegroundColor Green
 & $exe

@@ -1,5 +1,5 @@
 [package]
-name = "lmahjong"
+name = "xmahjong"
 version = "0.1.3"
 edition = "2021"
 description = "A Tux-themed Mahjong solitaire game"

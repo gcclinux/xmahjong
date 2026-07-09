@@ -1,4 +1,4 @@
-//! LMahjong library crate.
+//! xMahjong library crate.
 //!
 //! Exports all game modules publicly for testability.
 

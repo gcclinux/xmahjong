@@ -2,7 +2,7 @@
 """
 Extract individual penguin tile images from the sprite sheet.
 
-Uses the alpha-channel sprite (tux-sprite-lmahjong.png) to detect the grid
+Uses the alpha-channel sprite (tux-sprite-xmahjong.png) to detect the grid
 boundaries via transparent gaps between images, then extracts each image
 cell, scales it to fit in a 256x256 canvas, and centers it with a
 transparent (alpha=0) border.
@@ -15,7 +15,7 @@ import os
 import sys
 from PIL import Image
 
-SPRITE_PATH = "sprite/tux-sprite-lmahjong.png"
+SPRITE_PATH = "sprite/tux-sprite-xmahjong.png"
 OUTPUT_DIR = "assets/tiles"
 TILE_SIZE = 256
 

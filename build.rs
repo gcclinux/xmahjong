@@ -3,14 +3,14 @@ use std::fs;
 fn main() {
     // -----------------------------------------------------------------------
     // Version — single source of truth via the `release` file.
-    // Available in code as env!("LMAHJONG_VERSION").
+    // Available in code as env!("XMAHJONG_VERSION").
     // -----------------------------------------------------------------------
     let version = fs::read_to_string("release")
         .expect("Failed to read `release` file")
         .trim()
         .to_string();
 
-    println!("cargo:rustc-env=LMAHJONG_VERSION={}", version);
+    println!("cargo:rustc-env=XMAHJONG_VERSION={}", version);
     println!("cargo:rerun-if-changed=release");
 
     // -----------------------------------------------------------------------
@@ -74,7 +74,7 @@ fn windows_resources(version: &str) {
         }
     }
 
-    res.set("ProductName", "LMahjong");
+    res.set("ProductName", "xMahjong");
     res.set("FileDescription", "A Tux-themed Mahjong solitaire game");
     res.set("LegalCopyright", "GPL-3.0-or-later");
     res.set("FileVersion", version);

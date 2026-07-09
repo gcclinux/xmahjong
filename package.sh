@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# package.sh — Build LMahjong and create .deb, .rpm, and AppImage packages.
+# package.sh — Build xMahjong and create .deb, .rpm, and AppImage packages.
 #
 # Usage:
 #   ./package.sh [deb|rpm|appimage|all]
@@ -17,11 +17,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-APP_NAME="lmahjong"
+APP_NAME="xmahjong"
 APP_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/release")"
 APP_DESCRIPTION="A Tux-themed Mahjong solitaire game for Linux"
 APP_LICENSE="GPL-3.0-or-later"
-APP_MAINTAINER="LMahjong Developer <dev@lmahjong.local>"
+APP_MAINTAINER="xMahjong Developer <dev@xmahjong.local>"
 APP_CATEGORIES="Game;BoardGame;"
 ARCH="$(uname -m)"
 
@@ -58,7 +58,7 @@ prepare_staging() {
     # Desktop file
     cat > "$staging/usr/share/applications/$APP_NAME.desktop" <<EOF
 [Desktop Entry]
-Name=LMahjong
+Name=xMahjong
 Comment=$APP_DESCRIPTION
 Exec=$APP_NAME
 Icon=$APP_NAME
@@ -186,7 +186,7 @@ build_appimage() {
     # Desktop file (AppImage requires it at root of AppDir)
     cat > "$appdir/$APP_NAME.desktop" <<EOF
 [Desktop Entry]
-Name=LMahjong
+Name=xMahjong
 Comment=$APP_DESCRIPTION
 Exec=$APP_NAME
 Icon=$APP_NAME
@@ -241,8 +241,8 @@ EOF
 SELF="$(readlink -f "$0")"
 APPDIR="$(dirname "$SELF")"
 export LD_LIBRARY_PATH="$APPDIR/usr/lib:${LD_LIBRARY_PATH:-}"
-cd "$APPDIR/usr/share/lmahjong"
-exec "$APPDIR/usr/bin/lmahjong" "$@"
+cd "$APPDIR/usr/share/xmahjong"
+exec "$APPDIR/usr/bin/xmahjong" "$@"
 APPRUN
     chmod +x "$appdir/AppRun"
 

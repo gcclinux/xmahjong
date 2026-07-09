@@ -1,11 +1,11 @@
 //! Property-based tests for timer formatting.
 //!
-//! Feature: lmahjong, Property 15: Timer Formatting
+//! Feature: xmahjong, Property 15: Timer Formatting
 
-use lmahjong::timer::GameTimer;
+use xmahjong::timer::GameTimer;
 use proptest::prelude::*;
 
-// Feature: lmahjong, Property 15: Timer Formatting
+// Feature: xmahjong, Property 15: Timer Formatting
 // Validates: Requirements 8.1
 proptest! {
     #[test]

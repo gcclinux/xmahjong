@@ -9,9 +9,9 @@ use std::path::PathBuf;
 
 /// Returns the storage directory path.
 /// Checks `$SNAP_USER_DATA` first (Snap packages), then uses the platform-appropriate location:
-/// - macOS:   `~/Library/Application Support/lmahjong/`
-/// - Windows: `%APPDATA%\lmahjong\`
-/// - Linux:   `~/.local/share/lmahjong/`
+/// - macOS:   `~/Library/Application Support/xmahjong/`
+/// - Windows: `%APPDATA%\xmahjong\`
+/// - Linux:   `~/.local/share/xmahjong/`
 fn storage_dir() -> PathBuf {
     if let Ok(snap_dir) = std::env::var("SNAP_USER_DATA") {
         PathBuf::from(snap_dir)
@@ -21,26 +21,26 @@ fn storage_dir() -> PathBuf {
 }
 
 /// Platform-appropriate storage directory.
-/// - macOS:   `~/Library/Application Support/lmahjong/`
-/// - Windows: `%APPDATA%\lmahjong\`  (e.g. C:\Users\<user>\AppData\Roaming\lmahjong)
-/// - Linux:   `~/.local/share/lmahjong/`
+/// - macOS:   `~/Library/Application Support/xmahjong/`
+/// - Windows: `%APPDATA%\xmahjong\`  (e.g. C:\Users\<user>\AppData\Roaming\xmahjong)
+/// - Linux:   `~/.local/share/xmahjong/`
 fn dirs_fallback() -> PathBuf {
     if cfg!(target_os = "macos") {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         PathBuf::from(home)
             .join("Library")
             .join("Application Support")
-            .join("lmahjong")
+            .join("xmahjong")
     } else if cfg!(target_os = "windows") {
         // APPDATA is always set on Windows; fall back to current dir if somehow missing
         let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
-        PathBuf::from(appdata).join("lmahjong")
+        PathBuf::from(appdata).join("xmahjong")
     } else {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         PathBuf::from(home)
             .join(".local")
             .join("share")
-            .join("lmahjong")
+            .join("xmahjong")
     }
 }
 
@@ -104,18 +104,18 @@ impl Leaderboard {
     pub fn save(&self) {
         let dir = storage_dir();
         if let Err(e) = fs::create_dir_all(&dir) {
-            eprintln!("lmahjong: failed to create storage directory {:?}: {}", dir, e);
+            eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
             return;
         }
         let path = dir.join("leaderboard.json");
         match serde_json::to_string_pretty(self) {
             Ok(json) => {
                 if let Err(e) = fs::write(&path, json) {
-                    eprintln!("lmahjong: failed to write leaderboard to {:?}: {}", path, e);
+                    eprintln!("xmahjong: failed to write leaderboard to {:?}: {}", path, e);
                 }
             }
             Err(e) => {
-                eprintln!("lmahjong: failed to serialize leaderboard: {}", e);
+                eprintln!("xmahjong: failed to serialize leaderboard: {}", e);
             }
         }
     }
@@ -166,18 +166,18 @@ impl Settings {
     pub fn save(&self) {
         let dir = storage_dir();
         if let Err(e) = fs::create_dir_all(&dir) {
-            eprintln!("lmahjong: failed to create storage directory {:?}: {}", dir, e);
+            eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
             return;
         }
         let path = dir.join("settings.json");
         match serde_json::to_string_pretty(self) {
             Ok(json) => {
                 if let Err(e) = fs::write(&path, json) {
-                    eprintln!("lmahjong: failed to write settings to {:?}: {}", path, e);
+                    eprintln!("xmahjong: failed to write settings to {:?}: {}", path, e);
                 }
             }
             Err(e) => {
-                eprintln!("lmahjong: failed to serialize settings: {}", e);
+                eprintln!("xmahjong: failed to serialize settings: {}", e);
             }
         }
     }
@@ -245,18 +245,18 @@ impl SavedGame {
     pub fn save(&self) {
         let dir = storage_dir();
         if let Err(e) = fs::create_dir_all(&dir) {
-            eprintln!("lmahjong: failed to create storage directory {:?}: {}", dir, e);
+            eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
             return;
         }
         let path = dir.join("savegame.json");
         match serde_json::to_string_pretty(self) {
             Ok(json) => {
                 if let Err(e) = fs::write(&path, json) {
-                    eprintln!("lmahjong: failed to write savegame to {:?}: {}", path, e);
+                    eprintln!("xmahjong: failed to write savegame to {:?}: {}", path, e);
                 }
             }
             Err(e) => {
-                eprintln!("lmahjong: failed to serialize savegame: {}", e);
+                eprintln!("xmahjong: failed to serialize savegame: {}", e);
             }
         }
     }
