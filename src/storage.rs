@@ -183,6 +183,68 @@ impl Settings {
     }
 }
 
+/// Persistent shuffle state tracking daily bonus.
+///
+/// Stored as `shuffles.json` in the storage directory.
+/// Tracks the last date the game was launched (for +1 daily bonus).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShuffleState {
+    /// The last date (ISO 8601 YYYY-MM-DD) the user launched the game and received a daily bonus.
+    pub last_bonus_date: String,
+}
+
+impl Default for ShuffleState {
+    fn default() -> Self {
+        Self {
+            last_bonus_date: String::new(),
+        }
+    }
+}
+
+impl ShuffleState {
+    /// Loads the shuffle state from disk.
+    /// Returns default state (no bonus date) on any read or parse error.
+    pub fn load() -> Self {
+        let path = storage_dir().join("shuffles.json");
+        match fs::read_to_string(&path) {
+            Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
+            Err(_) => Self::default(),
+        }
+    }
+
+    /// Saves the shuffle state to disk.
+    pub fn save(&self) {
+        let dir = storage_dir();
+        if let Err(e) = fs::create_dir_all(&dir) {
+            eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
+            return;
+        }
+        let path = dir.join("shuffles.json");
+        match serde_json::to_string_pretty(self) {
+            Ok(json) => {
+                if let Err(e) = fs::write(&path, json) {
+                    eprintln!("xmahjong: failed to write shuffle state to {:?}: {}", path, e);
+                }
+            }
+            Err(e) => {
+                eprintln!("xmahjong: failed to serialize shuffle state: {}", e);
+            }
+        }
+    }
+
+    /// Checks if a daily bonus should be applied for the given date.
+    /// Returns true if today is different from the last bonus date (bonus should be given).
+    /// Updates the last_bonus_date to today.
+    pub fn claim_daily_bonus(&mut self, today: &str) -> bool {
+        if self.last_bonus_date != today {
+            self.last_bonus_date = today.to_string();
+            true
+        } else {
+            false
+        }
+    }
+}
+
 /// Represents a saved game state that can be resumed later.
 ///
 /// Stores only the minimal data needed to reconstruct the game:
@@ -200,7 +262,7 @@ pub struct SavedGame {
     /// Number of shuffles used.
     pub shuffles_used: u32,
     /// Number of shuffles remaining.
-    pub shuffles_remaining: u8,
+    pub shuffles_remaining: u32,
     /// Number of pairs matched so far.
     pub pairs_matched: u32,
     /// Number of undos used this level.
@@ -232,11 +294,15 @@ fn default_level() -> u32 {
 }
 
 impl SavedGame {
-    /// Loads a saved game from disk. Returns None if no save exists or it's corrupt.
+    /// Loads a saved game from disk. Returns None if no save exists, is corrupt,
+    /// or contains a level outside the valid range (1-50).
     pub fn load() -> Option<Self> {
         let path = storage_dir().join("savegame.json");
         match fs::read_to_string(&path) {
-            Ok(contents) => serde_json::from_str(&contents).ok(),
+            Ok(contents) => {
+                let saved: Option<Self> = serde_json::from_str(&contents).ok();
+                saved.filter(|s| (1..=50).contains(&s.level))
+            }
             Err(_) => None,
         }
     }

@@ -6,13 +6,22 @@
 .PARAMETER Release
     Build and run in release mode. Default is debug.
 
+.PARAMETER Dev
+    Run in development mode (disables saving, skips update check).
+
+.PARAMETER Level
+    Start at a specific level (1-50). Requires -Dev flag.
+
 .EXAMPLE
     .\run.ps1
     .\run.ps1 -Release
+    .\run.ps1 -Dev -Level 29
 #>
 
 param(
-    [switch]$Release
+    [switch]$Release,
+    [switch]$Dev,
+    [int]$Level = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,5 +51,16 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $profile = if ($Release) { 'release' } else { 'debug' }
 $exe = Join-Path $ScriptDir "target\$profile\xmahjong.exe"
 
-Write-Host "Running: $exe" -ForegroundColor Green
-& $exe
+$runArgs = @()
+if ($Dev) {
+    $runArgs += '--dev'
+    if ($Level -gt 0) {
+        $runArgs += '--level'
+        $runArgs += $Level.ToString()
+    }
+    Write-Host "Running (DEV mode, level $Level): $exe $runArgs" -ForegroundColor Yellow
+} else {
+    Write-Host "Running: $exe" -ForegroundColor Green
+}
+
+& $exe @runArgs

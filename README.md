@@ -1,6 +1,6 @@
 # xMahjong
 
-A Tux-themed Mahjong solitaire game for Linux, built with Rust and SDL2.
+A Tux-themed Mahjong solitaire game for Linux, windows & MacOS built with Rust and SDL2.
 
 ## About
 
@@ -12,12 +12,15 @@ xMahjong is a classic tile-matching solitaire game featuring Tux penguin-themed 
 
 - Classic Turtle layout with 144 tiles across 5 layers
 - Guaranteed solvable boards via reverse-deal generation
-- Hint system, undo (up to 10 moves), and shuffle (up to 3 per game)
+- Hint system, undo (up to 10 moves), and progressive shuffle system
 - Timer and scoring system with local leaderboard (top 10)
 - Keyboard shortcuts for all actions
 - Audio feedback with mute support
 - Resizable window (min 1920×1080, adapts to screen resolution)
 - Native Linux packages (.deb, .rpm, AppImage)
+- Daily new free Shuffle +1
+
+![Game Over - Shuffle](assets/shuffles.png)
 
 ## Prerequisites
 
@@ -124,6 +127,18 @@ Score starts at 0 and increases with each pair matched:
 
 Top 10 scores are saved to a local leaderboard.
 
+## Shuffle System
+
+Shuffles rearrange the remaining tiles on the board when no moves are available (or strategically when desired). The shuffle economy is progressive:
+
+- **Starting shuffles:** Each new game begins with 1 shuffle
+- **Level completion bonus:** +1 shuffle awarded for each level completed (carried across levels)
+- **Daily bonus:** +1 shuffle granted once per day when the game is launched
+- **Total potential:** By completing all 50 levels, a player accumulates up to 51 shuffles (1 starting + 50 level rewards), plus any daily bonuses earned
+- **Wait for Shuffle:** If you run out of shuffles and moves mid-run, you can choose "Wait for Shuffle" instead of starting over. This saves your game and exits. The next day when you launch the game, the daily bonus gives you a new shuffle so you can continue where you left off.
+
+Shuffle state persists across sessions via `shuffles.json` in the data storage directory.
+
 ## Packaging (.deb, .rpm, AppImage)
 
 A packaging script is included to create distribution packages:
@@ -205,6 +220,7 @@ All game data is stored as JSON files in a platform-specific directory:
 | `leaderboard.json` | Top 10 scores with player name, score, time, hints used, shuffles used, undos used, and date |
 | `settings.json` | Persistent settings (muted state) |
 | `savegame.json` | In-progress game state for resuming later (deleted after loading) |
+| `shuffles.json` | Shuffle state: tracks last daily bonus date for the +1 daily shuffle reward |
 
 ### Menu
 

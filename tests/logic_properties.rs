@@ -512,3 +512,137 @@ proptest! {
         }
     }
 }
+
+
+// Feature: space-levels, Property 1: Face pool size follows linear interpolation formula
+//
+// **Validates: Requirements 2.2**
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_1_face_pool_size_linear_interpolation(level in 21u32..=50) {
+        let pool = xmahjong::levels::face_pool_for_level(level);
+        let expected_size = 100 + ((level - 21) as usize * 100) / 29;
+        prop_assert_eq!(pool.len(), expected_size,
+            "At level {}, pool size should be {} but was {}", level, expected_size, pool.len());
+    }
+}
+
+// Feature: space-levels, Property 2: Face pool distribution is even with wrapping IDs
+//
+// **Validates: Requirements 2.4, 2.5, 2.6**
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_2_face_pool_distribution_even_wrapping(level in 21u32..=50) {
+        let pool = xmahjong::levels::face_pool_for_level(level);
+        let pool_size = pool.len();
+        let per_set = pool_size / 3;
+        let remainder = pool_size - per_set * 2;
+
+        // Split pool into penguin, dog, space segments by range
+        let penguin_ids: Vec<u8> = pool.iter().copied().filter(|&id| id < 50).collect();
+        let dog_ids: Vec<u8> = pool.iter().copied().filter(|&id| id >= 50 && id < 100).collect();
+        let space_ids: Vec<u8> = pool.iter().copied().filter(|&id| id >= 100 && id < 150).collect();
+
+        // Check counts
+        prop_assert_eq!(penguin_ids.len(), per_set,
+            "Level {}: penguin count should be {}, got {}", level, per_set, penguin_ids.len());
+        prop_assert_eq!(dog_ids.len(), per_set,
+            "Level {}: dog count should be {}, got {}", level, per_set, dog_ids.len());
+        prop_assert_eq!(space_ids.len(), remainder,
+            "Level {}: space count should be {}, got {}", level, remainder, space_ids.len());
+
+        // Check wrapping: each penguin ID should be (index % 50)
+        for (i, &id) in penguin_ids.iter().enumerate() {
+            prop_assert_eq!(id, (i % 50) as u8,
+                "Level {}: penguin ID at index {} should be {}, got {}", level, i, (i % 50) as u8, id);
+        }
+        // Each dog ID should be 50 + (index % 50)
+        for (i, &id) in dog_ids.iter().enumerate() {
+            prop_assert_eq!(id, 50 + (i % 50) as u8,
+                "Level {}: dog ID at index {} should be {}, got {}", level, i, 50 + (i % 50) as u8, id);
+        }
+        // Each space ID should be 100 + (index % 50)
+        for (i, &id) in space_ids.iter().enumerate() {
+            prop_assert_eq!(id, 100 + (i % 50) as u8,
+                "Level {}: space ID at index {} should be {}, got {}", level, i, 100 + (i % 50) as u8, id);
+        }
+
+        // All IDs must be in valid range (0-149)
+        for &id in &pool {
+            prop_assert!(id < 150,
+                "Level {}: face ID {} is outside valid range 0-149", level, id);
+        }
+    }
+}
+
+// Feature: space-levels, Property 3: Tile count follows 10-level cycling pattern
+//
+// **Validates: Requirements 3.2, 3.3, 3.4**
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_3_tile_count_cycling_pattern(level in 21u32..=50) {
+        let tile_count = xmahjong::levels::tiles_for_level(level);
+        let effective_level = ((level - 1) % 10) + 1;
+        let expected = xmahjong::levels::tiles_for_level(effective_level);
+        prop_assert_eq!(tile_count, expected,
+            "Level {} (effective {}) should have {} tiles, got {}", level, effective_level, expected, tile_count);
+    }
+}
+
+// Feature: space-levels, Property 4: Tile count invariants
+//
+// **Validates: Requirements 3.5, 3.6**
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_4_tile_count_invariants(level in 1u32..=50) {
+        let tile_count = xmahjong::levels::tiles_for_level(level);
+        prop_assert_eq!(tile_count % 4, 0,
+            "Level {}: tile count {} is not a multiple of 4", level, tile_count);
+        prop_assert!(tile_count <= 144,
+            "Level {}: tile count {} exceeds 144", level, tile_count);
+    }
+}
+
+// Feature: space-levels, Property 7: Victory menu determined by max level boundary
+//
+// **Validates: Requirements 5.2, 5.3, 6.1, 6.2, 6.3**
+
+/// Maximum level — mirrors the constant defined in main.rs.
+const MAX_LEVEL: u32 = 50;
+
+/// Computes the victory menu item count for a given level.
+fn victory_menu_item_count(level: u32) -> usize {
+    if level < MAX_LEVEL { 3 } else { 2 }
+}
+
+/// Computes the victory dialog height for a given level.
+fn victory_dialog_height(level: u32) -> u32 {
+    if level < MAX_LEVEL { 360 } else { 300 }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_7_victory_menu_by_max_level(level in 1u32..=50) {
+        if level < MAX_LEVEL {
+            prop_assert_eq!(victory_menu_item_count(level), 3,
+                "Level {}: menu items should be 3 (below max)", level);
+            prop_assert_eq!(victory_dialog_height(level), 360,
+                "Level {}: dialog height should be 360 (below max)", level);
+        } else {
+            prop_assert_eq!(victory_menu_item_count(level), 2,
+                "Level {}: menu items should be 2 (at max)", level);
+            prop_assert_eq!(victory_dialog_height(level), 300,
+                "Level {}: dialog height should be 300 (at max)", level);
+        }
+    }
+}

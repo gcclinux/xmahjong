@@ -162,7 +162,7 @@ pub enum GameOverReason {
 /// Error type for shuffle operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ShuffleError {
-    /// No shuffles remaining (max 3 per game).
+    /// No shuffles remaining.
     NoShufflesRemaining,
     /// Could not produce a valid arrangement after 10 retries.
     NoValidArrangement,

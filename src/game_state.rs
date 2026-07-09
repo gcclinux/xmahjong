@@ -25,8 +25,8 @@ pub struct GameState {
     pub hint: Option<HintState>,
     /// Stack of moves available for undo (max 10).
     pub undo_stack: Vec<UndoEntry>,
-    /// Number of shuffles remaining (starts at 3).
-    pub shuffles_remaining: u8,
+    /// Number of shuffles remaining (starts at 1, +1 per completed level, +1 daily bonus).
+    pub shuffles_remaining: u32,
     /// Current level (starts at 1).
     pub level: u32,
     /// Accumulated score from previous levels (carried forward on level advance).

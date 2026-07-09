@@ -14,7 +14,7 @@ use xmahjong::generator::BoardGenerator;
 use xmahjong::input::{GameAction, InputHandler};
 use xmahjong::logic::{self, GameOverReason, HintResult, SelectionResult};
 use xmahjong::renderer::{self, Renderer};
-use xmahjong::storage::{Leaderboard, LeaderboardEntry, SavedGame, Settings};
+use xmahjong::storage::{Leaderboard, LeaderboardEntry, SavedGame, Settings, ShuffleState};
 use xmahjong::timer::GameTimer;
 
 /// Target frame duration for ~60 FPS (16.67ms per frame).
@@ -32,6 +32,9 @@ const VERSION_CHECK_URL: &str =
 
 /// URL to open for downloading the latest release.
 const RELEASE_DOWNLOAD_URL: &str = "https://github.com/gcclinux/xmahjong/releases/latest";
+
+/// Maximum level number. Level progression stops at this level.
+const MAX_LEVEL: u32 = 50;
 
 /// State for the update-available dialog shown at startup.
 struct UpdateInfo {
@@ -101,12 +104,66 @@ fn open_url(url: &str) {
     }
 }
 
+/// Development mode configuration parsed from CLI arguments.
+/// When active, all persistence is disabled and the game starts at a specific level.
+struct DevMode {
+    /// Whether dev mode is active.
+    enabled: bool,
+    /// Starting level (1-50). Only used when enabled is true.
+    start_level: u32,
+}
+
+/// Parses command-line arguments for dev mode.
+/// Supports: --dev --level N
+fn parse_dev_args() -> DevMode {
+    let args: Vec<String> = std::env::args().collect();
+    let mut enabled = false;
+    let mut start_level = 1u32;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--dev" => enabled = true,
+            "--level" => {
+                if i + 1 < args.len() {
+                    if let Ok(lvl) = args[i + 1].parse::<u32>() {
+                        if (1..=50).contains(&lvl) {
+                            start_level = lvl;
+                        } else {
+                            eprintln!("[xMahjong] Warning: --level must be 1-50, got {}. Using 1.", lvl);
+                        }
+                    }
+                    i += 1;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    DevMode { enabled, start_level }
+}
+
 fn main() {
+    // Parse command-line arguments for dev mode
+    let dev_mode = parse_dev_args();
+
+    if dev_mode.enabled {
+        eprintln!("[xMahjong] DEV MODE: Starting at level {}. All saving disabled.", dev_mode.start_level);
+    }
+
     // 1. Initialize SDL2 context
     let sdl_context = sdl2::init().expect("Failed to initialize SDL2");
 
     // 2. Create Renderer (handles window, canvas, textures)
     let mut renderer = Renderer::new(&sdl_context).expect("Failed to create renderer");
+
+    // In dev mode, update window title to show dev status
+    if dev_mode.enabled {
+        renderer.canvas.window_mut().set_title(
+            &format!("[DEV] xMahjong - Level {}", dev_mode.start_level)
+        ).ok();
+    }
 
     // Enable SDL2 text input (needed for TextInput events during name entry)
     {
@@ -125,7 +182,10 @@ fn main() {
     let input_handler = InputHandler::new();
 
     // 6. Generate initial board and create GameState
-    let mut game_state = if SavedGame::exists() {
+    let mut game_state = if dev_mode.enabled {
+        // Dev mode: skip save loading, jump directly to specified level
+        create_new_game_state_for_level(dev_mode.start_level)
+    } else if SavedGame::exists() {
         match load_saved_game() {
             Some(state) => {
                 SavedGame::delete();
@@ -136,6 +196,27 @@ fn main() {
     } else {
         create_new_game_state()
     };
+
+    // 6b. Load persistent shuffle state and apply daily bonus
+    let mut shuffle_state = ShuffleState::load();
+    let today = current_date_string();
+    let daily_bonus = shuffle_state.claim_daily_bonus(&today);
+    shuffle_state.save();
+    // Apply daily bonus (+1 shuffle) to the game state
+    if daily_bonus {
+        game_state.shuffles_remaining += 1;
+    }
+
+    // 6c. If resumed game has no valid moves, show appropriate dialog
+    if game_state.status == GameStatus::Playing && game_state.board.valid_pairs().is_empty() {
+        if game_state.shuffles_remaining > 0 {
+            game_state.status = GameStatus::Lost; // Shows "No Moves" with Shuffle button
+        } else {
+            game_state.timer.pause();
+            game_state.score.elapsed_seconds = game_state.timer.elapsed_seconds();
+            game_state.status = GameStatus::GameOver;
+        }
+    }
 
     // Start the timer immediately for the first game
     game_state.timer.start();
@@ -160,9 +241,12 @@ fn main() {
     let mut game_over_menu_selection: usize = 0;
 
     // Check for updates at startup (non-blocking: if network fails, silently skip)
-    let mut update_info: Option<UpdateInfo> = check_for_update().map(|v| UpdateInfo {
-        latest_version: v,
-    });
+    // Skip in dev mode to avoid unnecessary network calls
+    let mut update_info: Option<UpdateInfo> = if dev_mode.enabled {
+        None
+    } else {
+        check_for_update().map(|v| UpdateInfo { latest_version: v })
+    };
 
     // SDL2 event pump
     let mut event_pump = sdl_context
@@ -204,9 +288,11 @@ fn main() {
                                             undos_used: entry.undos_used,
                                             date,
                                         };
-                                        let mut leaderboard = Leaderboard::load();
-                                        leaderboard.insert(lb_entry);
-                                        leaderboard.save();
+                                        if !dev_mode.enabled {
+                                            let mut leaderboard = Leaderboard::load();
+                                            leaderboard.insert(lb_entry);
+                                            leaderboard.save();
+                                        }
                                         // Transition back based on origin
                                         name_entry = None;
                                         if name_entry_from_game_over {
@@ -314,7 +400,9 @@ fn main() {
                                 }
                                 6 => {
                                     // SAVE + QUIT
-                                    save_current_game(&game_state);
+                                    if !dev_mode.enabled {
+                                        save_current_game(&game_state);
+                                    }
                                     break 'game_loop;
                                 }
                                 _ => {}
@@ -359,7 +447,7 @@ fn main() {
             // --- Handle victory menu keyboard navigation ---
             if game_state.status == GameStatus::Won {
                 if let sdl2::event::Event::KeyDown { keycode: Some(keycode), .. } = &event {
-                    let item_count = if game_state.level < 20 { 3usize } else { 2usize };
+                    let item_count = if game_state.level < MAX_LEVEL { 3usize } else { 2usize };
                     match *keycode {
                         sdl2::keyboard::Keycode::Up => {
                             if victory_menu_selection == 0 {
@@ -375,7 +463,7 @@ fn main() {
                         }
                         sdl2::keyboard::Keycode::Return
                         | sdl2::keyboard::Keycode::KpEnter => {
-                            if game_state.level < 20 {
+                            if game_state.level < MAX_LEVEL {
                                 match victory_menu_selection {
                                     0 => {
                                         // NEXT LEVEL
@@ -385,7 +473,7 @@ fn main() {
                                         let accumulated_hints = game_state.base_hints + game_state.score.hints_used;
                                         let accumulated_shuffles = game_state.base_shuffles + game_state.score.shuffles_used;
                                         let accumulated_undos = game_state.base_undos + game_state.score.undos_used;
-                                        let remaining_shuffles = game_state.shuffles_remaining;
+                                        let remaining_shuffles = game_state.shuffles_remaining + 1; // +1 shuffle reward for completing level
                                         game_state = create_new_game_state_for_level(next_level);
                                         game_state.base_score = accumulated;
                                         game_state.base_time_ms = accumulated_time;
@@ -479,14 +567,14 @@ fn main() {
                     match *keycode {
                         sdl2::keyboard::Keycode::Up => {
                             if game_over_menu_selection == 0 {
-                                game_over_menu_selection = 1;
+                                game_over_menu_selection = 2;
                             } else {
                                 game_over_menu_selection -= 1;
                             }
                             continue;
                         }
                         sdl2::keyboard::Keycode::Down => {
-                            game_over_menu_selection = (game_over_menu_selection + 1) % 2;
+                            game_over_menu_selection = (game_over_menu_selection + 1) % 3;
                             continue;
                         }
                         sdl2::keyboard::Keycode::Return
@@ -508,6 +596,11 @@ fn main() {
                                     // NEW GAME
                                     game_state = create_new_game_state();
                                     game_state.timer.start();
+                                }
+                                2 => {
+                                    // WAIT FOR SHUFFLE — save game and quit
+                                    save_current_game(&game_state);
+                                    break 'game_loop;
                                 }
                                 _ => {}
                             }
@@ -715,7 +808,9 @@ fn main() {
                                     game_state.status = GameStatus::Leaderboard;
                                 } else if y >= start_y + spacing * 6 && y < start_y + spacing * 6 + btn_h as i32 {
                                     // SAVE + QUIT
-                                    save_current_game(&game_state);
+                                    if !dev_mode.enabled {
+                                        save_current_game(&game_state);
+                                    }
                                     break 'game_loop;
                                 }
                             }
@@ -755,7 +850,7 @@ fn main() {
                             // Handle clicks on the "Game Over" dialog buttons
                             let (win_w, win_h) = renderer.window_size();
                             let dialog_w: u32 = 380;
-                            let dialog_h: u32 = 320;
+                            let dialog_h: u32 = 374;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
 
@@ -788,10 +883,19 @@ fn main() {
                                 game_state = create_new_game_state();
                                 game_state.timer.start();
                             }
+
+                            // Wait for Shuffle button: y offset 318 from dialog top
+                            let wait_y = dialog_y as i32 + 318;
+                            if x >= btn_x && x < btn_x + btn_w as i32
+                                && y >= wait_y && y < wait_y + btn_h as i32
+                            {
+                                save_current_game(&game_state);
+                                break 'game_loop;
+                            }
                         } else if game_state.status == GameStatus::Won {
                             // Handle clicks on Victory dialog buttons
                             let (win_w, win_h) = renderer.window_size();
-                            let dialog_h: u32 = if game_state.level < 20 { 360 } else { 300 };
+                            let dialog_h: u32 = if game_state.level < MAX_LEVEL { 360 } else { 300 };
                             let dialog_w: u32 = 350;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
@@ -800,7 +904,7 @@ fn main() {
                             let btn_h: u32 = 44;
                             let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
 
-                            if game_state.level < 20 {
+                            if game_state.level < MAX_LEVEL {
                                 // Next Level button: y offset 155
                                 let next_level_y = dialog_y as i32 + 155;
                                 if x >= btn_x && x < btn_x + btn_w as i32
@@ -812,7 +916,7 @@ fn main() {
                                     let accumulated_hints = game_state.base_hints + game_state.score.hints_used;
                                     let accumulated_shuffles = game_state.base_shuffles + game_state.score.shuffles_used;
                                     let accumulated_undos = game_state.base_undos + game_state.score.undos_used;
-                                    let remaining_shuffles = game_state.shuffles_remaining;
+                                    let remaining_shuffles = game_state.shuffles_remaining + 1; // +1 shuffle reward for completing level
                                     game_state = create_new_game_state_for_level(next_level);
                                     game_state.base_score = accumulated;
                                     game_state.base_time_ms = accumulated_time;
@@ -967,10 +1071,12 @@ fn main() {
                     }
 
                     GameAction::Save => {
-                        if game_state.status == GameStatus::Playing
-                            || game_state.status == GameStatus::Paused
-                        {
-                            save_current_game(&game_state);
+                        if !dev_mode.enabled {
+                            if game_state.status == GameStatus::Playing
+                                || game_state.status == GameStatus::Paused
+                            {
+                                save_current_game(&game_state);
+                            }
                         }
                     }
 
@@ -978,7 +1084,9 @@ fn main() {
                         if game_state.status == GameStatus::Playing
                             || game_state.status == GameStatus::Paused
                         {
-                            save_current_game(&game_state);
+                            if !dev_mode.enabled {
+                                save_current_game(&game_state);
+                            }
                             break 'game_loop;
                         } else {
                             break 'game_loop;
@@ -988,7 +1096,9 @@ fn main() {
                     GameAction::ToggleMute => {
                         audio.toggle_mute();
                         settings.muted = audio.is_muted();
-                        settings.save();
+                        if !dev_mode.enabled {
+                            settings.save();
+                        }
                     }
 
                     GameAction::ToggleFullscreen => {
@@ -1160,52 +1270,8 @@ fn handle_select_tile(
     false
 }
 
-/// Returns the number of tiles to place for a given level (1-20).
-/// Levels 1-10 scale from 36 to 144 tiles (penguins only).
-/// Levels 11-20 repeat the same tile counts but mix in dog faces.
-/// All values are multiples of 4 (required for face pairing).
-fn tiles_for_level(level: u32) -> usize {
-    // Levels 11-20 mirror the tile counts of levels 1-10
-    let effective = if level > 10 { level - 10 } else { level };
-    match effective {
-        1 => 36,
-        2 => 48,
-        3 => 60,
-        4 => 72,
-        5 => 84,
-        6 => 96,
-        7 => 108,
-        8 => 120,
-        9 => 132,
-        _ => 144,
-    }
-}
-
-/// Returns the face pool for a given level.
-/// - Levels 1-10: only penguin faces (0-49)
-/// - Levels 11-20: penguin faces (0-49) mixed with an increasing number of dog faces (50-99)
-///   Level 11: 1 dog style added, Level 12: 2 dog styles, ... Level 15+: 5 dog styles
-fn face_pool_for_level(level: u32) -> Vec<u8> {
-    if level <= 10 {
-        // Pure penguin faces
-        (0u8..50).collect()
-    } else {
-        // Mix penguin + dog faces
-        // Add 1 dog style per level from 11 to 15, then stay at 5 dog styles for 16-20
-        let dog_styles = ((level - 10) as usize).min(5);
-        let mut pool: Vec<u8> = (0u8..50).collect(); // all penguins
-        // Add dog faces: each "style" adds 10 dog face IDs
-        // Style 1: faces 50-59, Style 2: 60-69, etc.
-        for s in 0..dog_styles {
-            let start = 50 + (s as u8 * 10);
-            let end = start + 10;
-            for face_id in start..end {
-                pool.push(face_id);
-            }
-        }
-        pool
-    }
-}
+// Level system functions are defined in the library crate for testability.
+use xmahjong::levels::{tiles_for_level, face_pool_for_level};
 
 /// Creates a new GameState with a freshly generated board for the given level.
 fn create_new_game_state_for_level(level: u32) -> GameState {
@@ -1231,7 +1297,7 @@ fn create_new_game_state_for_level(level: u32) -> GameState {
                 .expect("Failed to generate board after 5 attempts")
         }
     } else {
-        // Levels 11-20: use custom face pool (penguins + dogs)
+        // Levels 11-50: use custom face pool (penguins + dogs + space)
         generator
             .generate_with_faces(layout, tile_count, &face_pool, 10)
             .expect("Failed to generate board after 10 attempts")
@@ -1245,7 +1311,7 @@ fn create_new_game_state_for_level(level: u32) -> GameState {
         selection: None,
         hint: None,
         undo_stack: Vec::new(),
-        shuffles_remaining: 30,
+        shuffles_remaining: 1,
         level,
         base_score: 0,
         base_time_ms: 0,

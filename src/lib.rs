@@ -28,3 +28,6 @@ pub mod timer;
 
 /// Central game state structure and status enum.
 pub mod game_state;
+
+/// Level system: tile count and face pool computation per level.
+pub mod levels;

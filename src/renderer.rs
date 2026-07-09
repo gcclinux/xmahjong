@@ -19,8 +19,8 @@ use crate::storage::Leaderboard;
 /// Number of distinct tile face images per style.
 const TILE_FACE_COUNT: usize = 50;
 
-/// Total number of tile face textures (penguins + dogs).
-const TOTAL_FACE_COUNT: usize = 100;
+/// Total number of tile face textures (penguins + dogs + space).
+const TOTAL_FACE_COUNT: usize = 150;
 
 /// Default window width in pixels.
 #[cfg(target_os = "macos")]
@@ -591,6 +591,24 @@ impl Renderer {
                 }
                 Err(_) => {
                     textures.push(None);
+                }
+            }
+        }
+
+        // Load space tiles (face IDs 100-149)
+        for i in 0..TILE_FACE_COUNT {
+            let path = format!("{}/space/face_{:02}.png", base, i);
+            match texture_creator.load_texture(&path) {
+                Ok(texture) => {
+                    let texture: Texture<'static> = unsafe { std::mem::transmute(texture) };
+                    textures.push(Some(texture));
+                }
+                Err(e) => {
+                    textures.push(None);
+                    eprintln!(
+                        "[xMahjong] Warning: Space tile texture not found: '{}'. Using placeholder. ({})",
+                        path, e
+                    );
                 }
             }
         }
@@ -1453,7 +1471,7 @@ impl Renderer {
     pub fn render_victory(&mut self, time: &str, score: u32, level: u32, selected: usize) {
         self.draw_overlay_backdrop();
 
-        let dialog_h: u32 = if level < 20 { 360 } else { 300 };
+        let dialog_h: u32 = if level < 50 { 360 } else { 300 };
         let dialog = self.draw_dialog_box(350, dialog_h);
 
         // "VICTORY!" title
@@ -1489,7 +1507,7 @@ impl Renderer {
         let btn_h: u32 = 44;
         let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
 
-        if level < 20 {
+        if level < 50 {
             let buttons: &[(i32, Color, &str)] = &[
                 (155, Color::RGB(120, 60, 180), "NEXT LEVEL"),
                 (215, Color::RGB(50, 140, 70), "NEW GAME"),
@@ -1671,7 +1689,7 @@ impl Renderer {
     pub fn render_game_over(&mut self, score: u32, time_seconds: u32, hints_used: u32, shuffles_used: u32, level: u32, selected: usize) {
         self.draw_overlay_backdrop();
 
-        let dialog = self.draw_dialog_box(380, 320);
+        let dialog = self.draw_dialog_box(380, 374);
 
         // "GAME OVER" title (red)
         self.draw_bitmap_text(
@@ -1746,6 +1764,7 @@ impl Renderer {
         let buttons: &[(i32, Color, &str)] = &[
             (210, Color::RGB(180, 140, 30), "SAVE SCORE"),
             (264, Color::RGB(50, 140, 70), "NEW GAME"),
+            (318, Color::RGB(80, 100, 180), "WAIT FOR SHUFFLE"),
         ];
 
         for (i, (y_off, color, label)) in buttons.iter().enumerate() {

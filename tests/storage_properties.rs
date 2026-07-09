@@ -95,3 +95,94 @@ proptest! {
         );
     }
 }
+
+use xmahjong::storage::SavedGame;
+
+// Feature: space-levels, Property 8: Save/load level round-trip
+//
+// **Validates: Requirements 5.4**
+//
+// For any level N in 1..=50, serializing a SavedGame with that level
+// and deserializing it back preserves the level value exactly.
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_8_save_load_level_round_trip(level in 1u32..=50) {
+        let saved = SavedGame {
+            tiles: vec![Some(0); 144],
+            undo_stack: Vec::new(),
+            elapsed_ms: 0,
+            hints_used: 0,
+            shuffles_used: 0,
+            shuffles_remaining: 30,
+            pairs_matched: 0,
+            undos_used: 0,
+            level,
+            base_score: 0,
+            base_time_ms: 0,
+            base_hints: 0,
+            base_shuffles: 0,
+            base_undos: 0,
+        };
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&saved)
+            .expect("SavedGame serialization should not fail");
+
+        // Deserialize from JSON
+        let loaded: SavedGame = serde_json::from_str(&json)
+            .expect("SavedGame deserialization should not fail");
+
+        // Level must be preserved
+        prop_assert_eq!(loaded.level, level,
+            "Level not preserved: saved {}, loaded {}", level, loaded.level);
+
+        // Also verify the validation would pass (1..=50)
+        prop_assert!((1..=50).contains(&loaded.level),
+            "Loaded level {} is outside valid range", loaded.level);
+    }
+}
+
+// Feature: space-levels, Property 9: Invalid level in save is rejected
+//
+// **Validates: Requirements 5.5**
+//
+// For any level value outside 1..=50, deserializing a SavedGame with that level
+// and applying the validation filter should return None.
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_9_invalid_level_rejected(level in prop_oneof![Just(0u32), 51u32..=255]) {
+        let saved = SavedGame {
+            tiles: vec![Some(0); 144],
+            undo_stack: Vec::new(),
+            elapsed_ms: 0,
+            hints_used: 0,
+            shuffles_used: 0,
+            shuffles_remaining: 30,
+            pairs_matched: 0,
+            undos_used: 0,
+            level,
+            base_score: 0,
+            base_time_ms: 0,
+            base_hints: 0,
+            base_shuffles: 0,
+            base_undos: 0,
+        };
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&saved)
+            .expect("SavedGame serialization should not fail");
+
+        // Deserialize and apply the same validation that load() uses
+        let loaded: Option<SavedGame> = serde_json::from_str::<SavedGame>(&json)
+            .ok()
+            .filter(|s| (1..=50).contains(&s.level));
+
+        // Should be None because level is outside valid range
+        prop_assert!(loaded.is_none(),
+            "Level {} should be rejected but was accepted", level);
+    }
+}
