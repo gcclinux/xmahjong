@@ -333,10 +333,6 @@ EOF
     echo ""
     echo "    To run:"
     echo "      open \"$app_dir\""
-    echo ""
-    echo "    To distribute, create a DMG:"
-    echo "      hdiutil create -volname \"$APP_DISPLAY_NAME\" -srcfolder \"$app_dir\" \\"
-    echo "        -ov -format UDZO \"$BUILD_DIR/${APP_DISPLAY_NAME}-${APP_VERSION}-${ARCH}.dmg\""
 }
 
 build_dmg() {
@@ -365,10 +361,29 @@ build_dmg() {
     echo "    Created: $dmg_output"
 }
 
+build_zip() {
+    echo "==> Creating ZIP archive..."
+    local app_dir="$BUILD_DIR/$APP_DISPLAY_NAME.app"
+    local zip_output="$BUILD_DIR/${APP_DISPLAY_NAME}.app-${APP_VERSION}-${ARCH}.zip"
+
+    if [ ! -d "$app_dir" ]; then
+        echo "    Error: .app bundle not found."
+        exit 1
+    fi
+
+    # Remove existing zip if present
+    rm -f "$zip_output"
+
+    # Create zip from the build directory so paths are relative
+    (cd "$BUILD_DIR" && zip -r "$zip_output" "$APP_DISPLAY_NAME.app/")
+
+    echo "    Created: $zip_output"
+}
+
 # --- Main ---
 
 main() {
-    local target="${1:-app}"
+    local target="${1:-all}"
 
     mkdir -p "$BUILD_DIR"
     build_release
@@ -381,11 +396,26 @@ main() {
             build_app
             build_dmg
             ;;
-        *)
-            echo "Usage: $0 [app|dmg]"
+        zip)
+            build_app
+            build_zip
+            ;;
+        all|"")
+            build_app
+            build_dmg
+            build_zip
             echo ""
-            echo "  app  - Build .app bundle (default)"
+            echo "==> All packages ready for GitHub release:"
+            echo "    DMG: $BUILD_DIR/${APP_DISPLAY_NAME}-${APP_VERSION}-${ARCH}.dmg"
+            echo "    ZIP: $BUILD_DIR/${APP_DISPLAY_NAME}.app-${APP_VERSION}-${ARCH}.zip"
+            ;;
+        *)
+            echo "Usage: $0 [app|dmg|zip|all]"
+            echo ""
+            echo "  app  - Build .app bundle only"
             echo "  dmg  - Build .app bundle + DMG disk image"
+            echo "  zip  - Build .app bundle + ZIP archive"
+            echo "  all  - Build .app + DMG + ZIP (default)"
             exit 1
             ;;
     esac
