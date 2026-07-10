@@ -1681,6 +1681,41 @@ impl Renderer {
         }
     }
 
+    /// Renders a semi-transparent hint suggestion banner over the game board.
+    ///
+    /// Shown after 120 seconds of inactivity (no clicks or pair matches) while Playing.
+    /// The banner is non-intrusive: a translucent pill near the bottom of the screen.
+    pub fn render_hint_suggestion(&mut self) {
+        let (win_w, win_h) = self.window_size();
+
+        // Semi-transparent backdrop pill centered near the bottom
+        let text = "TRY SHIFT+H FOR HINT";
+        let scale: u32 = 2;
+        let char_w = 6 * scale; // each bitmap char is ~5px + 1px spacing, scaled
+        let text_w = text.len() as u32 * char_w;
+        let padding_x: u32 = 24;
+        let padding_y: u32 = 14;
+        let pill_w = text_w + padding_x * 2;
+        let pill_h = 8 * scale + padding_y * 2;
+        let pill_x = (win_w.saturating_sub(pill_w)) / 2;
+        let pill_y = win_h.saturating_sub(pill_h + 60);
+
+        let pill_rect = Rect::new(pill_x as i32, pill_y as i32, pill_w, pill_h);
+
+        // Draw translucent dark background
+        self.canvas.set_draw_color(Color::RGBA(20, 20, 40, 160));
+        self.canvas.fill_rect(pill_rect).ok();
+
+        // Draw subtle border
+        self.canvas.set_draw_color(Color::RGBA(100, 180, 255, 140));
+        self.canvas.draw_rect(pill_rect).ok();
+
+        // Draw the text centered in the pill
+        let text_x = pill_x as i32 + padding_x as i32;
+        let text_y = pill_y as i32 + padding_y as i32;
+        self.draw_bitmap_text(text, text_x, text_y, scale, Color::RGBA(180, 220, 255, 220));
+    }
+
     /// Renders the game over dialog when no moves and no shuffles remain.
     ///
     /// Displays final stats (score, time, hints, shuffles, level) and offers:

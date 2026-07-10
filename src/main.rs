@@ -207,16 +207,8 @@ fn main() {
         game_state.shuffles_remaining += 1;
     }
 
-    // 6c. If resumed game has no valid moves, show appropriate dialog
-    if game_state.status == GameStatus::Playing && game_state.board.valid_pairs().is_empty() {
-        if game_state.shuffles_remaining > 0 {
-            game_state.status = GameStatus::Lost; // Shows "No Moves" with Shuffle button
-        } else {
-            game_state.timer.pause();
-            game_state.score.elapsed_seconds = game_state.timer.elapsed_seconds();
-            game_state.status = GameStatus::GameOver;
-        }
-    }
+    // 6c. Resumed games stay in Playing state even if no valid moves remain.
+    // The player can explore the board and use Hint (Shift+H) to confirm no moves.
 
     // Start the timer immediately for the first game
     game_state.timer.start();
@@ -239,6 +231,13 @@ fn main() {
     let mut lost_menu_selection: usize = 0;
     // Track the currently selected item in the Game Over dialog (0=Save Score, 1=New Game)
     let mut game_over_menu_selection: usize = 0;
+
+    // Track inactivity: time of last user action (click, key) while Playing.
+    // After 120 seconds of inactivity without matching a pair, show a hint suggestion.
+    let mut last_activity_time = Instant::now();
+    // Whether the hint suggestion overlay is currently visible.
+    let mut show_hint_suggestion = false;
+    const INACTIVITY_HINT_SECS: u64 = 120;
 
     // Check for updates at startup (non-blocking: if network fails, silently skip)
     // Skip in dev mode to avoid unnecessary network calls
@@ -354,6 +353,9 @@ fn main() {
                         }
                         sdl2::keyboard::Keycode::Return
                         | sdl2::keyboard::Keycode::KpEnter => {
+                            // Reset inactivity when user interacts with pause menu
+                            last_activity_time = Instant::now();
+                            show_hint_suggestion = false;
                             match pause_menu_selection {
                                 0 => {
                                     // NEW GAME
@@ -710,6 +712,13 @@ fn main() {
                 }
 
                 // --- 7b. Process GameAction based on current GameStatus ---
+
+                // Reset inactivity timer on any user action while playing
+                if game_state.status == GameStatus::Playing {
+                    last_activity_time = Instant::now();
+                    show_hint_suggestion = false;
+                }
+
                 match action {
                     GameAction::SelectTile(x, y) => {
                         if game_state.status == GameStatus::Playing {
@@ -1008,6 +1017,8 @@ fn main() {
                         game_state = create_new_game_state();
                         game_state.timer.start();
                         quit_confirmation = false;
+                        last_activity_time = Instant::now();
+                        show_hint_suggestion = false;
                     }
 
                     GameAction::Undo => {
@@ -1067,6 +1078,8 @@ fn main() {
                         if game_state.status == GameStatus::Paused {
                             game_state.status = GameStatus::Playing;
                             game_state.timer.resume();
+                            last_activity_time = Instant::now();
+                            show_hint_suggestion = false;
                         }
                     }
 
@@ -1148,6 +1161,16 @@ fn main() {
             GameStatus::Playing => {
                 renderer.render_board(&game_state, layout_rect);
                 renderer.render_hud(&game_state);
+
+                // Show hint suggestion after inactivity
+                if !show_hint_suggestion
+                    && last_activity_time.elapsed() >= Duration::from_secs(INACTIVITY_HINT_SECS)
+                {
+                    show_hint_suggestion = true;
+                }
+                if show_hint_suggestion {
+                    renderer.render_hint_suggestion();
+                }
             }
             GameStatus::Paused => {
                 renderer.render_board(&game_state, layout_rect);
@@ -1237,26 +1260,14 @@ fn handle_select_tile(
         SelectionResult::Matched(_, _) => {
             audio.play_match();
 
-            // Check for game over after a successful match
-            if let Some(reason) = logic::check_game_over(state) {
-                match reason {
-                    GameOverReason::Won => {
-                        state.timer.pause();
-                        state.score.elapsed_seconds = state.timer.elapsed_seconds();
-                        state.status = GameStatus::Won;
-                        audio.play_victory();
-                        return true;
-                    }
-                    GameOverReason::Lost => {
-                        if state.shuffles_remaining == 0 {
-                            state.timer.pause();
-                            state.score.elapsed_seconds = state.timer.elapsed_seconds();
-                            state.status = GameStatus::GameOver;
-                        } else {
-                            state.status = GameStatus::Lost;
-                        }
-                    }
-                }
+            // Check for win condition after a successful match
+            // (No-moves detection is deferred until the player requests a Hint)
+            if let Some(GameOverReason::Won) = logic::check_game_over(state) {
+                state.timer.pause();
+                state.score.elapsed_seconds = state.timer.elapsed_seconds();
+                state.status = GameStatus::Won;
+                audio.play_victory();
+                return true;
             }
         }
         SelectionResult::Mismatched(_, _) => {
