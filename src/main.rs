@@ -237,7 +237,7 @@ fn main() {
     let mut last_activity_time = Instant::now();
     // Whether the hint suggestion overlay is currently visible.
     let mut show_hint_suggestion = false;
-    const INACTIVITY_HINT_SECS: u64 = 120;
+    const INACTIVITY_HINT_SECS: u64 = 60;
 
     // Check for updates at startup (non-blocking: if network fails, silently skip)
     // Skip in dev mode to avoid unnecessary network calls

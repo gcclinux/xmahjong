@@ -172,7 +172,9 @@ pub enum ShuffleError {
 ///
 /// - Checks that shuffles_remaining > 0
 /// - Collects face_ids from occupied positions, shuffles them, reassigns
-/// - Ensures at least one valid pair exists among free tiles (retries up to 10 times)
+/// - Ensures at least 5 valid pairs exist among free tiles (or all remaining pairs
+///   if fewer than 10 tiles remain), retries up to 50 times with random shuffle
+/// - If random attempts fail, uses smart placement to guarantee pairs on free tiles
 /// - Decrements shuffles_remaining, clears undo stack and selection
 /// - Adds a Shuffle animation to state.animations
 /// - Increments state.score.shuffles_used
@@ -192,11 +194,23 @@ pub fn shuffle(state: &mut GameState) -> Result<(), ShuffleError> {
         .map(|&i| state.board.tiles[i].unwrap().face_id)
         .collect();
 
-    // 3-6. Shuffle and retry up to 10 times until a valid pair exists
+    // Calculate the minimum number of valid pairs required after shuffle.
+    // If few tiles remain (<=10), require that all remaining tiles form pairs
+    // (i.e. remaining / 2 pairs). Otherwise require at least 5 pairs.
+    let remaining = occupied_positions.len();
+    let min_required_pairs = if remaining <= 10 {
+        // Near end-game: ensure all tiles are matchable among free tiles,
+        // but at minimum require 1 pair so the game can continue.
+        1.max(remaining / 2)
+    } else {
+        5
+    };
+
+    // 3-6. Shuffle and retry up to 50 times until enough valid pairs exist
     let mut rng = thread_rng();
     let mut found_valid = false;
 
-    for _ in 0..10 {
+    for _ in 0..50 {
         face_ids.shuffle(&mut rng);
 
         // Temporarily assign shuffled face_ids to check validity
@@ -206,16 +220,20 @@ pub fn shuffle(state: &mut GameState) -> Result<(), ShuffleError> {
             }
         }
 
-        // Check if at least one valid pair exists among free tiles
-        if !state.board.valid_pairs().is_empty() {
+        // Check if enough valid pairs exist among free tiles
+        if state.board.valid_pairs().len() >= min_required_pairs {
             found_valid = true;
             break;
         }
     }
 
-    // 7. If all retries fail, return error
+    // 7. If random retries fail, use smart placement to guarantee playable pairs
     if !found_valid {
-        return Err(ShuffleError::NoValidArrangement);
+        smart_shuffle_placement(state, &occupied_positions, &mut face_ids);
+        // Verify the smart placement produced a valid result
+        if state.board.valid_pairs().is_empty() {
+            return Err(ShuffleError::NoValidArrangement);
+        }
     }
 
     // 8. Decrement shuffles_remaining
@@ -237,6 +255,105 @@ pub fn shuffle(state: &mut GameState) -> Result<(), ShuffleError> {
     state.score.shuffles_used += 1;
 
     Ok(())
+}
+
+/// Smart shuffle placement strategy: ensures free tiles get matching face_ids.
+///
+/// Works by:
+/// 1. Identifying which positions are currently free
+/// 2. Grouping face_ids by value (preserving the multiset)
+/// 3. Assigning matching face_ids to free tile positions in pairs
+/// 4. Distributing remaining face_ids randomly across non-free positions
+fn smart_shuffle_placement(
+    state: &mut GameState,
+    occupied_positions: &[usize],
+    face_ids: &mut Vec<u8>,
+) {
+    use std::collections::HashMap;
+
+    let mut rng = thread_rng();
+
+    // Find which occupied positions are currently free
+    let free_positions: Vec<usize> = occupied_positions
+        .iter()
+        .copied()
+        .filter(|&pos| state.board.is_free(pos))
+        .collect();
+
+    // Build a frequency map of available face_ids
+    let mut face_counts: HashMap<u8, usize> = HashMap::new();
+    for &fid in face_ids.iter() {
+        *face_counts.entry(fid).or_insert(0) += 1;
+    }
+
+    // Collect face_ids that have at least 2 copies (can form pairs)
+    let mut pairable_faces: Vec<u8> = face_counts
+        .iter()
+        .filter(|(_, &count)| count >= 2)
+        .map(|(&fid, _)| fid)
+        .collect();
+    pairable_faces.shuffle(&mut rng);
+
+    // Assign matching pairs to free positions
+    let mut assigned: HashMap<usize, u8> = HashMap::new(); // pos -> face_id
+    let pairs_to_place = free_positions.len() / 2;
+
+    if !pairable_faces.is_empty() && pairs_to_place > 0 {
+        let mut face_iter = pairable_faces.iter().cycle();
+
+        // We'll place up to pairs_to_place pairs on free positions
+        let mut free_iter = free_positions.iter();
+        for _ in 0..pairs_to_place {
+            // Find a face_id that still has at least 2 copies available
+            let mut attempts = 0;
+            let max_attempts = pairable_faces.len() * 2;
+            loop {
+                if attempts >= max_attempts {
+                    break;
+                }
+                let &candidate = face_iter.next().unwrap();
+                let available = face_counts.get(&candidate).copied().unwrap_or(0);
+                if available >= 2 {
+                    // Assign this face to the next two free positions
+                    if let (Some(&pos_a), Some(&pos_b)) = (free_iter.next(), free_iter.next()) {
+                        assigned.insert(pos_a, candidate);
+                        assigned.insert(pos_b, candidate);
+                        *face_counts.get_mut(&candidate).unwrap() -= 2;
+                    }
+                    break;
+                }
+                attempts += 1;
+            }
+        }
+    }
+
+    // Build the final face_id assignment:
+    // - Assigned positions get their designated face_id
+    // - Remaining face_ids go to unassigned positions (shuffled randomly)
+    let mut remaining_faces: Vec<u8> = Vec::new();
+    for (&fid, &count) in &face_counts {
+        for _ in 0..count {
+            remaining_faces.push(fid);
+        }
+    }
+    remaining_faces.shuffle(&mut rng);
+
+    // Assign face_ids back into the face_ids vec and update the board
+    let mut remaining_iter = remaining_faces.into_iter();
+    for (idx, &pos) in occupied_positions.iter().enumerate() {
+        if let Some(&assigned_face) = assigned.get(&pos) {
+            face_ids[idx] = assigned_face;
+        } else if let Some(face) = remaining_iter.next() {
+            face_ids[idx] = face;
+        }
+    }
+
+    // Apply final assignment to board
+    for (idx, &pos) in occupied_positions.iter().enumerate() {
+        if let Some(ref mut tile) = state.board.tiles[pos] {
+            tile.face_id = face_ids[idx];
+        }
+    }
 }
 
 /// Requests a hint by finding one valid pair among free tiles and highlighting it.
