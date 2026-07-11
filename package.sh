@@ -257,9 +257,11 @@ APPRUN
     fi
 
     # Build the AppImage
+    # Use --appimage-extract-and-run to avoid FUSE dependency (needed in containers
+    # and on systems where AppImages cannot self-mount, e.g. aarch64 chroots).
     local output="$BUILD_DIR/${APP_NAME}-${APP_VERSION}-${ARCH}.AppImage"
-    ARCH="$ARCH" "$appimagetool" "$appdir" "$output" 2>/dev/null || \
-    ARCH="$ARCH" "$appimagetool" --no-appstream "$appdir" "$output"
+    ARCH="$ARCH" "$appimagetool" --appimage-extract-and-run "$appdir" "$output" 2>/dev/null || \
+    ARCH="$ARCH" "$appimagetool" --appimage-extract-and-run --no-appstream "$appdir" "$output"
     echo "    Created: $output"
 }
 
