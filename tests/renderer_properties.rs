@@ -774,7 +774,7 @@ proptest! {
 // =============================================================================
 
 use xmahjong::board::{Board, Tile, turtle_layout};
-use xmahjong::game_state::{GameState, GameStatus, ScoreTracker};
+use xmahjong::game_state::{GameState, GameStatus, ScoreTracker, Difficulty};
 use xmahjong::renderer::hit_test;
 use xmahjong::timer::GameTimer;
 
@@ -806,6 +806,7 @@ fn make_test_game_state(tile_indices: &[usize]) -> GameState {
         base_shuffles: 0,
         base_undos: 0,
         animations: Vec::new(),
+        difficulty: Difficulty::Easy,
     }
 }
 
@@ -929,6 +930,7 @@ fn hit_test_removed_tile_returns_none() {
         base_shuffles: 0,
         base_undos: 0,
         animations: Vec::new(),
+        difficulty: Difficulty::Easy,
     };
 
     let metrics = compute_layout_rect(1920, 1080);

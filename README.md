@@ -143,6 +143,19 @@ Shuffles rearrange the remaining tiles on the board when no moves are available 
 
 Shuffle state persists across sessions via `shuffles.json` in the data storage directory.
 
+## Difficulty
+
+The game offers two difficulty levels that affect how shuffles behave:
+
+- **Easy** (default): Shuffles are guaranteed to produce a playable board state. The game uses smart placement to ensure free tiles always have valid matching pairs after a shuffle. You will never get stuck due to a bad shuffle.
+- **Normal**: Shuffles randomly redistribute face IDs across the remaining tiles without any solvability guarantee. You may end up with no valid moves after a shuffle and need to use another shuffle to continue.
+
+### Switching Difficulty
+
+Difficulty can be changed at any time from the pause menu (ESC → navigate to "DIFFICULTY" → press Enter or click). Mid-game you can pause, switch from EASY to NORMAL (or vice versa), resume, and keep playing. The shuffle behavior changes immediately — if you switch to NORMAL and use a shuffle on the current level, it will already be the random (non-guaranteed) shuffle. When you advance to the next level, the game uses whichever difficulty you last set.
+
+Difficulty is saved with the game state and displayed on the leaderboard.
+
 ## Packaging (.deb, .rpm, AppImage)
 
 A packaging script is included to create distribution packages:

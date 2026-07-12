@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use proptest::prelude::*;
 
 use xmahjong::board::turtle_layout;
-use xmahjong::game_state::{GameState, GameStatus, ScoreTracker};
+use xmahjong::game_state::{GameState, GameStatus, ScoreTracker, Difficulty};
 use xmahjong::generator::BoardGenerator;
 use xmahjong::logic::{check_game_over, request_hint, select_tile, undo, GameOverReason, HintResult, SelectionResult, UndoError};
 use xmahjong::timer::GameTimer;
@@ -51,6 +51,7 @@ proptest! {
             base_shuffles: 0,
             base_undos: 0,
             animations: Vec::new(),
+            difficulty: Difficulty::Easy,
         };
 
         // Select the free tile
@@ -105,6 +106,7 @@ fn make_state(board: xmahjong::board::Board) -> GameState {
         base_shuffles: 0,
         base_undos: 0,
         animations: Vec::new(),
+        difficulty: Difficulty::Easy,
     }
 }
 

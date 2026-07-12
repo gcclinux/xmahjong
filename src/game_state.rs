@@ -9,6 +9,20 @@ use crate::board::Board;
 use crate::logic::UndoEntry;
 use crate::timer::GameTimer;
 
+/// Difficulty level that affects shuffle behavior.
+///
+/// - **Easy**: Shuffles are guaranteed to produce a solvable board state.
+///   Uses smart placement to ensure free tiles always have valid pairs.
+/// - **Normal**: Shuffles randomly redistribute face IDs without guaranteeing
+///   solvability. The player may need to use additional shuffles if they get stuck.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Difficulty {
+    /// Guaranteed solvable shuffles (smart placement fallback).
+    Easy,
+    /// Pure random shuffles — may require reshuffling due to dead ends.
+    Normal,
+}
+
 /// Central game state holding all data for the current session.
 pub struct GameState {
     /// The board with tile positions and occupancy.
@@ -41,6 +55,8 @@ pub struct GameState {
     pub base_undos: u32,
     /// Active animations being played.
     pub animations: Vec<Animation>,
+    /// Difficulty level for this session (affects shuffle behavior).
+    pub difficulty: Difficulty,
 }
 
 /// The current phase/status of the game.

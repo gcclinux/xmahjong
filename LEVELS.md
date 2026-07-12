@@ -89,3 +89,27 @@ The face pool size grows linearly using the formula `pool_size = 100 + ((level -
 - At level 50 (max), only "NEW GAME" and "LEADERBOARD" buttons are shown.
 - The current level is displayed on the HUD between Score and Shuffle.
 - Level is persisted in save files so quitting mid-game resumes at the correct level.
+
+## Difficulty
+
+The game has two difficulty settings that control shuffle behavior:
+
+| Difficulty | Shuffle Behavior |
+|------------|-----------------|
+| **Easy** | Shuffles guarantee a playable board. Smart placement ensures free tiles always have valid matching pairs. You will never get stuck due to a bad shuffle. |
+| **Normal** | Shuffles randomly redistribute tiles without guaranteeing solvability. You may run out of valid moves and need to reshuffle again. |
+
+### How It Works
+
+- **Easy mode** retries the shuffle up to 50 times looking for a valid arrangement. If random attempts fail, it uses a smart placement algorithm that explicitly assigns matching face IDs to free tile positions, guaranteeing at least 5 valid pairs (or all remaining pairs if fewer than 10 tiles are left).
+- **Normal mode** performs a single random shuffle of all face IDs across occupied positions. No validation or retry logic is applied. The result may or may not have valid moves available.
+
+### Switching Difficulty
+
+Difficulty can be toggled at any time from the pause menu (ESC → "DIFFICULTY: EASY/NORMAL" → Enter or click). Mid-game you can pause, switch from EASY to NORMAL (or vice versa), resume, and keep playing. The shuffle behavior changes immediately — if you switch to NORMAL and use a shuffle on the current level, it will already be the random (non-guaranteed) shuffle. When you advance to the next level, the game uses whichever difficulty you last set.
+
+### Persistence
+
+- Difficulty is stored in save files (`savegame.json`) so quitting mid-game preserves your setting.
+- Difficulty is recorded on leaderboard entries so scores show whether they were achieved on EASY or NORMAL.
+- Old save files and leaderboard entries without a difficulty field default to EASY for backwards compatibility.

@@ -27,6 +27,7 @@ proptest! {
                 hints_used: 0,
                 shuffles_used: 0,
                 undos_used: 0,
+                difficulty: "easy".to_string(),
                 date: "2024-01-01".to_string(),
             });
         }
@@ -124,6 +125,7 @@ proptest! {
             base_hints: 0,
             base_shuffles: 0,
             base_undos: 0,
+            difficulty: "easy".to_string(),
         };
 
         // Serialize to JSON
@@ -170,6 +172,7 @@ proptest! {
             base_hints: 0,
             base_shuffles: 0,
             base_undos: 0,
+            difficulty: "easy".to_string(),
         };
 
         // Serialize to JSON

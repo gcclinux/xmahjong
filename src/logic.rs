@@ -172,13 +172,17 @@ pub enum ShuffleError {
 ///
 /// - Checks that shuffles_remaining > 0
 /// - Collects face_ids from occupied positions, shuffles them, reassigns
-/// - Ensures at least 5 valid pairs exist among free tiles (or all remaining pairs
-///   if fewer than 10 tiles remain), retries up to 50 times with random shuffle
-/// - If random attempts fail, uses smart placement to guarantee pairs on free tiles
+/// - **Easy mode**: Ensures at least 5 valid pairs exist among free tiles (or all remaining
+///   pairs if fewer than 10 tiles remain), retries up to 50 times with random shuffle.
+///   If random attempts fail, uses smart placement to guarantee pairs on free tiles.
+/// - **Normal mode**: Performs a single random shuffle without any solvability guarantee.
+///   The player may end up with no valid moves and need to reshuffle again.
 /// - Decrements shuffles_remaining, clears undo stack and selection
 /// - Adds a Shuffle animation to state.animations
 /// - Increments state.score.shuffles_used
 pub fn shuffle(state: &mut GameState) -> Result<(), ShuffleError> {
+    use crate::game_state::Difficulty;
+
     // 1. Check shuffles_remaining > 0
     if state.shuffles_remaining == 0 {
         return Err(ShuffleError::NoShufflesRemaining);
@@ -194,45 +198,58 @@ pub fn shuffle(state: &mut GameState) -> Result<(), ShuffleError> {
         .map(|&i| state.board.tiles[i].unwrap().face_id)
         .collect();
 
-    // Calculate the minimum number of valid pairs required after shuffle.
-    // If few tiles remain (<=10), require that all remaining tiles form pairs
-    // (i.e. remaining / 2 pairs). Otherwise require at least 5 pairs.
-    let remaining = occupied_positions.len();
-    let min_required_pairs = if remaining <= 10 {
-        // Near end-game: ensure all tiles are matchable among free tiles,
-        // but at minimum require 1 pair so the game can continue.
-        1.max(remaining / 2)
-    } else {
-        5
-    };
-
-    // 3-6. Shuffle and retry up to 50 times until enough valid pairs exist
     let mut rng = thread_rng();
-    let mut found_valid = false;
 
-    for _ in 0..50 {
-        face_ids.shuffle(&mut rng);
+    match state.difficulty {
+        Difficulty::Normal => {
+            // Normal mode: pure random shuffle, no solvability guarantee
+            face_ids.shuffle(&mut rng);
 
-        // Temporarily assign shuffled face_ids to check validity
-        for (idx, &pos) in occupied_positions.iter().enumerate() {
-            if let Some(ref mut tile) = state.board.tiles[pos] {
-                tile.face_id = face_ids[idx];
+            // Assign shuffled face_ids to the board
+            for (idx, &pos) in occupied_positions.iter().enumerate() {
+                if let Some(ref mut tile) = state.board.tiles[pos] {
+                    tile.face_id = face_ids[idx];
+                }
             }
         }
+        Difficulty::Easy => {
+            // Easy mode: ensure enough valid pairs exist (original behavior)
 
-        // Check if enough valid pairs exist among free tiles
-        if state.board.valid_pairs().len() >= min_required_pairs {
-            found_valid = true;
-            break;
-        }
-    }
+            // Calculate the minimum number of valid pairs required after shuffle.
+            let remaining = occupied_positions.len();
+            let min_required_pairs = if remaining <= 10 {
+                1.max(remaining / 2)
+            } else {
+                5
+            };
 
-    // 7. If random retries fail, use smart placement to guarantee playable pairs
-    if !found_valid {
-        smart_shuffle_placement(state, &occupied_positions, &mut face_ids);
-        // Verify the smart placement produced a valid result
-        if state.board.valid_pairs().is_empty() {
-            return Err(ShuffleError::NoValidArrangement);
+            let mut found_valid = false;
+
+            for _ in 0..50 {
+                face_ids.shuffle(&mut rng);
+
+                // Temporarily assign shuffled face_ids to check validity
+                for (idx, &pos) in occupied_positions.iter().enumerate() {
+                    if let Some(ref mut tile) = state.board.tiles[pos] {
+                        tile.face_id = face_ids[idx];
+                    }
+                }
+
+                // Check if enough valid pairs exist among free tiles
+                if state.board.valid_pairs().len() >= min_required_pairs {
+                    found_valid = true;
+                    break;
+                }
+            }
+
+            // If random retries fail, use smart placement to guarantee playable pairs
+            if !found_valid {
+                smart_shuffle_placement(state, &occupied_positions, &mut face_ids);
+                // Verify the smart placement produced a valid result
+                if state.board.valid_pairs().is_empty() {
+                    return Err(ShuffleError::NoValidArrangement);
+                }
+            }
         }
     }
 
@@ -421,6 +438,7 @@ mod tests {
             base_shuffles: 0,
             base_undos: 0,
             animations: Vec::new(),
+            difficulty: crate::game_state::Difficulty::Easy,
         }
     }
 

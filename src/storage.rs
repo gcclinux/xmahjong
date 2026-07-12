@@ -62,6 +62,9 @@ pub struct LeaderboardEntry {
     /// Total number of undos used across all levels.
     #[serde(default)]
     pub undos_used: u32,
+    /// Difficulty level ("easy" or "normal").
+    #[serde(default = "default_difficulty_str")]
+    pub difficulty: String,
     /// Date of completion in ISO 8601 format.
     pub date: String,
 }
@@ -286,11 +289,19 @@ pub struct SavedGame {
     /// Accumulated undos used from previous levels.
     #[serde(default)]
     pub base_undos: u32,
+    /// Difficulty level for this session ("easy" or "normal").
+    #[serde(default = "default_difficulty_str")]
+    pub difficulty: String,
 }
 
 /// Default level value for backwards compatibility with old save files.
 fn default_level() -> u32 {
     1
+}
+
+/// Default difficulty value for backwards compatibility with old save files.
+fn default_difficulty_str() -> String {
+    "easy".to_string()
 }
 
 impl SavedGame {
@@ -354,6 +365,7 @@ mod tests {
             hints_used: 0,
             shuffles_used: 0,
             undos_used: 0,
+            difficulty: "easy".to_string(),
             date: "2024-01-01".to_string(),
         });
         lb.insert(LeaderboardEntry {
@@ -363,6 +375,7 @@ mod tests {
             hints_used: 0,
             shuffles_used: 0,
             undos_used: 0,
+            difficulty: "easy".to_string(),
             date: "2024-01-02".to_string(),
         });
         lb.insert(LeaderboardEntry {
@@ -372,6 +385,7 @@ mod tests {
             hints_used: 0,
             shuffles_used: 0,
             undos_used: 0,
+            difficulty: "easy".to_string(),
             date: "2024-01-03".to_string(),
         });
 
@@ -391,6 +405,7 @@ mod tests {
                 hints_used: 0,
                 shuffles_used: 0,
                 undos_used: 0,
+                difficulty: "easy".to_string(),
                 date: "2024-01-01".to_string(),
             });
         }
@@ -418,6 +433,7 @@ mod tests {
                 hints_used: 0,
                 shuffles_used: 0,
                 undos_used: 0,
+                difficulty: "easy".to_string(),
                 date: "2024-01-01".to_string(),
             });
         }
@@ -462,6 +478,7 @@ mod tests {
             hints_used: 0,
             shuffles_used: 0,
             undos_used: 0,
+            difficulty: "easy".to_string(),
             date: "2024-01-01".to_string(),
         });
 
@@ -480,6 +497,7 @@ mod tests {
             hints_used: 0,
             shuffles_used: 0,
             undos_used: 0,
+            difficulty: "easy".to_string(),
             date: "2024-01-01".to_string(),
         });
         lb.insert(LeaderboardEntry {
@@ -489,6 +507,7 @@ mod tests {
             hints_used: 0,
             shuffles_used: 0,
             undos_used: 0,
+            difficulty: "easy".to_string(),
             date: "2024-01-02".to_string(),
         });
 

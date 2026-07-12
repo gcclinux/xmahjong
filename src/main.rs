@@ -9,7 +9,7 @@ use sdl2::rect::Rect;
 
 use xmahjong::audio::AudioManager;
 use xmahjong::board::turtle_layout;
-use xmahjong::game_state::{GameState, GameStatus, NameEntryState, ScoreTracker};
+use xmahjong::game_state::{GameState, GameStatus, NameEntryState, ScoreTracker, Difficulty};
 use xmahjong::generator::BoardGenerator;
 use xmahjong::input::{GameAction, InputHandler};
 use xmahjong::logic::{self, GameOverReason, HintResult, SelectionResult};
@@ -184,7 +184,7 @@ fn main() {
     // 6. Generate initial board and create GameState
     let mut game_state = if dev_mode.enabled {
         // Dev mode: skip save loading, jump directly to specified level
-        create_new_game_state_for_level(dev_mode.start_level)
+        create_new_game_state_for_level(dev_mode.start_level, Difficulty::Easy)
     } else if SavedGame::exists() {
         match load_saved_game() {
             Some(state) => {
@@ -224,7 +224,7 @@ fn main() {
     let mut leaderboard_return_status = GameStatus::Won;
     // Track the currently selected menu item in the pause menu (0-indexed)
     let mut pause_menu_selection: usize = 0;
-    const PAUSE_MENU_ITEM_COUNT: usize = 7;
+    const PAUSE_MENU_ITEM_COUNT: usize = 8;
     // Track the currently selected menu item in the victory dialog (0-indexed)
     let mut victory_menu_selection: usize = 0;
     // Track the currently selected item in the No Moves dialog (0=Shuffle, 1=New Game)
@@ -285,6 +285,10 @@ fn main() {
                                             hints_used: entry.hints_used,
                                             shuffles_used: entry.shuffles_used,
                                             undos_used: entry.undos_used,
+                                            difficulty: match game_state.difficulty {
+                                                Difficulty::Easy => "easy".to_string(),
+                                                Difficulty::Normal => "normal".to_string(),
+                                            },
                                             date,
                                         };
                                         if !dev_mode.enabled {
@@ -296,7 +300,7 @@ fn main() {
                                         name_entry = None;
                                         if name_entry_from_game_over {
                                             name_entry_from_game_over = false;
-                                            game_state = create_new_game_state();
+                                            let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                             game_state.timer.start();
                                         } else {
                                             game_state.status = GameStatus::Won;
@@ -358,8 +362,9 @@ fn main() {
                             show_hint_suggestion = false;
                             match pause_menu_selection {
                                 0 => {
-                                    // NEW GAME
-                                    game_state = create_new_game_state();
+                                    // NEW GAME (preserves current difficulty)
+                                    let diff = game_state.difficulty;
+                                    game_state = create_new_game_state_for_level(1, diff);
                                     game_state.timer.start();
                                 }
                                 1 => {
@@ -401,6 +406,13 @@ fn main() {
                                     game_state.status = GameStatus::Leaderboard;
                                 }
                                 6 => {
+                                    // DIFFICULTY toggle
+                                    game_state.difficulty = match game_state.difficulty {
+                                        Difficulty::Easy => Difficulty::Normal,
+                                        Difficulty::Normal => Difficulty::Easy,
+                                    };
+                                }
+                                7 => {
                                     // SAVE + QUIT
                                     if !dev_mode.enabled {
                                         save_current_game(&game_state);
@@ -476,7 +488,8 @@ fn main() {
                                         let accumulated_shuffles = game_state.base_shuffles + game_state.score.shuffles_used;
                                         let accumulated_undos = game_state.base_undos + game_state.score.undos_used;
                                         let remaining_shuffles = game_state.shuffles_remaining + 1; // +1 shuffle reward for completing level
-                                        game_state = create_new_game_state_for_level(next_level);
+                                        let diff = game_state.difficulty;
+                                        game_state = create_new_game_state_for_level(next_level, diff);
                                         game_state.base_score = accumulated;
                                         game_state.base_time_ms = accumulated_time;
                                         game_state.base_hints = accumulated_hints;
@@ -488,7 +501,7 @@ fn main() {
                                     }
                                     1 => {
                                         // NEW GAME
-                                        game_state = create_new_game_state();
+                                        let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                         game_state.timer.start();
                                         victory_menu_selection = 0;
                                     }
@@ -503,7 +516,7 @@ fn main() {
                                 match victory_menu_selection {
                                     0 => {
                                         // NEW GAME
-                                        game_state = create_new_game_state();
+                                        let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                         game_state.timer.start();
                                         victory_menu_selection = 0;
                                     }
@@ -550,7 +563,7 @@ fn main() {
                                 }
                                 1 => {
                                     // NEW GAME
-                                    game_state = create_new_game_state();
+                                    let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                     game_state.timer.start();
                                 }
                                 _ => {}
@@ -596,7 +609,7 @@ fn main() {
                                 }
                                 1 => {
                                     // NEW GAME
-                                    game_state = create_new_game_state();
+                                    let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                     game_state.timer.start();
                                 }
                                 2 => {
@@ -766,7 +779,7 @@ fn main() {
                             // Handle clicks on pause menu buttons
                             let (win_w, win_h) = renderer.window_size();
                             let dialog_w: u32 = 300;
-                            let dialog_h: u32 = 440;
+                            let dialog_h: u32 = 490;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
 
@@ -780,7 +793,7 @@ fn main() {
                             if x >= btn_x && x < btn_x + btn_w as i32 {
                                 if y >= start_y && y < start_y + btn_h as i32 {
                                     // NEW GAME
-                                    game_state = create_new_game_state();
+                                    let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                     game_state.timer.start();
                                 } else if y >= start_y + spacing && y < start_y + spacing + btn_h as i32 {
                                     // UNDO
@@ -816,6 +829,12 @@ fn main() {
                                     leaderboard_return_status = GameStatus::Paused;
                                     game_state.status = GameStatus::Leaderboard;
                                 } else if y >= start_y + spacing * 6 && y < start_y + spacing * 6 + btn_h as i32 {
+                                    // DIFFICULTY toggle
+                                    game_state.difficulty = match game_state.difficulty {
+                                        Difficulty::Easy => Difficulty::Normal,
+                                        Difficulty::Normal => Difficulty::Easy,
+                                    };
+                                } else if y >= start_y + spacing * 7 && y < start_y + spacing * 7 + btn_h as i32 {
                                     // SAVE + QUIT
                                     if !dev_mode.enabled {
                                         save_current_game(&game_state);
@@ -852,7 +871,7 @@ fn main() {
                             if x >= btn_x && x < btn_x + btn_w as i32
                                 && y >= new_game_y && y < new_game_y + btn_h as i32
                             {
-                                game_state = create_new_game_state();
+                                let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                 game_state.timer.start();
                             }
                         } else if game_state.status == GameStatus::GameOver {
@@ -889,7 +908,7 @@ fn main() {
                             if x >= btn_x && x < btn_x + btn_w as i32
                                 && y >= new_game_y && y < new_game_y + btn_h as i32
                             {
-                                game_state = create_new_game_state();
+                                let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                 game_state.timer.start();
                             }
 
@@ -926,7 +945,8 @@ fn main() {
                                     let accumulated_shuffles = game_state.base_shuffles + game_state.score.shuffles_used;
                                     let accumulated_undos = game_state.base_undos + game_state.score.undos_used;
                                     let remaining_shuffles = game_state.shuffles_remaining + 1; // +1 shuffle reward for completing level
-                                    game_state = create_new_game_state_for_level(next_level);
+                                    let diff = game_state.difficulty;
+                                    game_state = create_new_game_state_for_level(next_level, diff);
                                     game_state.base_score = accumulated;
                                     game_state.base_time_ms = accumulated_time;
                                     game_state.base_hints = accumulated_hints;
@@ -941,7 +961,7 @@ fn main() {
                                 if x >= btn_x && x < btn_x + btn_w as i32
                                     && y >= new_game_y && y < new_game_y + btn_h as i32
                                 {
-                                    game_state = create_new_game_state();
+                                    let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                     game_state.timer.start();
                                 }
 
@@ -959,7 +979,7 @@ fn main() {
                                 if x >= btn_x && x < btn_x + btn_w as i32
                                     && y >= new_game_y && y < new_game_y + btn_h as i32
                                 {
-                                    game_state = create_new_game_state();
+                                    let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                                     game_state.timer.start();
                                 }
 
@@ -1014,7 +1034,7 @@ fn main() {
                     }
 
                     GameAction::NewGame => {
-                        game_state = create_new_game_state();
+                        let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
                         game_state.timer.start();
                         quit_confirmation = false;
                         last_activity_time = Instant::now();
@@ -1175,7 +1195,11 @@ fn main() {
             GameStatus::Paused => {
                 renderer.render_board(&game_state, layout_rect);
                 renderer.render_hud(&game_state);
-                renderer.render_menu(pause_menu_selection);
+                let diff_str = match game_state.difficulty {
+                    Difficulty::Easy => "EASY",
+                    Difficulty::Normal => "NORMAL",
+                };
+                renderer.render_menu(pause_menu_selection, diff_str);
             }
             GameStatus::Won => {
                 renderer.render_board(&game_state, layout_rect);
@@ -1197,7 +1221,11 @@ fn main() {
                 renderer.render_game_over(score, time_seconds, hints_used, shuffles_used, game_state.level, game_over_menu_selection);
             }
             GameStatus::Menu => {
-                renderer.render_menu(pause_menu_selection);
+                let diff_str = match game_state.difficulty {
+                    Difficulty::Easy => "EASY",
+                    Difficulty::Normal => "NORMAL",
+                };
+                renderer.render_menu(pause_menu_selection, diff_str);
             }
             GameStatus::NameEntry => {
                 renderer.render_board(&game_state, layout_rect);
@@ -1284,8 +1312,8 @@ fn handle_select_tile(
 // Level system functions are defined in the library crate for testability.
 use xmahjong::levels::{tiles_for_level, face_pool_for_level};
 
-/// Creates a new GameState with a freshly generated board for the given level.
-fn create_new_game_state_for_level(level: u32) -> GameState {
+/// Creates a new GameState with a freshly generated board for the given level and difficulty.
+fn create_new_game_state_for_level(level: u32, difficulty: Difficulty) -> GameState {
     let layout = turtle_layout();
     let seed = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1330,12 +1358,18 @@ fn create_new_game_state_for_level(level: u32) -> GameState {
         base_shuffles: 0,
         base_undos: 0,
         animations: Vec::new(),
+        difficulty,
     }
 }
 
 /// Creates a new GameState with a freshly generated board (level 1).
 fn create_new_game_state() -> GameState {
-    create_new_game_state_for_level(1)
+    create_new_game_state_for_level(1, Difficulty::Easy)
+}
+
+/// Creates a new GameState with a freshly generated board (level 1) with specified difficulty.
+fn create_new_game_state_with_difficulty(difficulty: Difficulty) -> GameState {
+    create_new_game_state_for_level(1, difficulty)
 }
 
 /// Removes completed animations from the game state.
@@ -1476,6 +1510,10 @@ fn save_current_game(state: &GameState) {
         base_hints: state.base_hints,
         base_shuffles: state.base_shuffles,
         base_undos: state.base_undos,
+        difficulty: match state.difficulty {
+            Difficulty::Easy => "easy".to_string(),
+            Difficulty::Normal => "normal".to_string(),
+        },
     };
 
     saved.save();
@@ -1522,6 +1560,11 @@ fn load_saved_game() -> Option<GameState> {
     timer.elapsed_ms = saved.elapsed_ms;
     // Timer is stopped; it will resume when game loop starts
 
+    let difficulty = match saved.difficulty.as_str() {
+        "normal" => Difficulty::Normal,
+        _ => Difficulty::Easy,
+    };
+
     let state = GameState {
         board,
         timer,
@@ -1544,6 +1587,7 @@ fn load_saved_game() -> Option<GameState> {
         base_shuffles: saved.base_shuffles,
         base_undos: saved.base_undos,
         animations: Vec::new(),
+        difficulty,
     };
 
     Some(state)

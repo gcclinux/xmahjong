@@ -1348,12 +1348,14 @@ impl Renderer {
     /// - Undo (blue)
     /// - Hint (cyan)
     /// - Shuffle (purple)
-    /// - Mute toggle (orange)
+    /// - Shortcuts (green)
+    /// - Leaderboard (blue)
     /// - Save + Quit (orange)
-    pub fn render_menu(&mut self, selected: usize) {
+    /// - Difficulty toggle (teal)
+    pub fn render_menu(&mut self, selected: usize, difficulty: &str) {
         self.draw_overlay_backdrop();
 
-        let dialog = self.draw_dialog_box(300, 440);
+        let dialog = self.draw_dialog_box(300, 490);
 
         // Title
         self.draw_bitmap_text(
@@ -1370,13 +1372,16 @@ impl Renderer {
         let start_y = dialog.y() + 60;
         let spacing: i32 = 50;
 
-        let buttons: &[(Color, &str)] = &[
+        let difficulty_label = format!("DIFFICULTY: {}", difficulty);
+
+        let buttons: Vec<(Color, &str)> = vec![
             (Color::RGB(50, 140, 70), "NEW GAME"),
             (Color::RGB(50, 100, 180), "UNDO"),
             (Color::RGB(50, 160, 170), "HINT"),
             (Color::RGB(120, 60, 160), "SHUFFLE"),
             (Color::RGB(100, 140, 100), "SHORTCUTS"),
             (Color::RGB(50, 100, 180), "LEADERBOARD"),
+            (Color::RGB(0, 130, 130), &difficulty_label),
             (Color::RGB(200, 130, 50), "SAVE + QUIT"),
         ];
 
@@ -1398,7 +1403,7 @@ impl Renderer {
         self.draw_bitmap_text(
             "ESC RESUME  CTRL+S SAVE",
             dialog.x() + 20,
-            dialog.y() + 415,
+            dialog.y() + 465,
             1,
             Color::RGB(120, 120, 140),
         );
@@ -1554,7 +1559,7 @@ impl Renderer {
 
         // Dialog sized to fit header + up to 10 entries + back button
         let dialog_h: u32 = 100 + (entry_count.max(1) as u32 * 28) + 70;
-        let dialog = self.draw_dialog_box(620, dialog_h);
+        let dialog = self.draw_dialog_box(770, dialog_h);
 
         // Title
         self.draw_bitmap_text(
@@ -1565,10 +1570,10 @@ impl Renderer {
             Color::RGB(255, 215, 0),
         );
 
-        // Column headers (same scale and x-offset as entries for alignment)
+        // Column headers
         let header = format!(
-            "{:<2} {:<10} {:>5}  {:>5} {:>2} {:>2} {:>2}",
-            "#", "NAME", "SCORE", "TIME", "H", "S", "U"
+            "{:<2} {:<10} {:>5}  {:>5} {:>4} {:>7} {:>4}  {:>6}",
+            "#", "NAME", "SCORE", "TIME", "HINT", "SHUFFLE", "UNDO", "LEVEL"
         );
         self.draw_bitmap_text(
             &header,
@@ -1596,8 +1601,12 @@ impl Renderer {
 
                 let minutes = entry.time_seconds / 60;
                 let seconds = entry.time_seconds % 60;
+                let diff_label = match entry.difficulty.as_str() {
+                    "normal" => "NORMAL",
+                    _ => "EASY",
+                };
                 let line = format!(
-                    "{:<2} {} {:>5}  {:02}:{:02} {:>2} {:>2} {:>2}",
+                    "{:<2} {} {:>5}  {:02}:{:02} {:>4} {:>7} {:>4}  {:>6}",
                     i + 1,
                     name_padded,
                     entry.score,
@@ -1606,6 +1615,7 @@ impl Renderer {
                     entry.hints_used,
                     entry.shuffles_used,
                     entry.undos_used,
+                    diff_label,
                 );
 
                 let color = if i == 0 {
