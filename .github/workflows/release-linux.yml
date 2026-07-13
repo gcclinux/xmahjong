@@ -1,0 +1,68 @@
+name: Release Linux Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            dpkg-dev rpm wget
+
+      - name: Build packages
+        run: |
+          chmod +x package.sh
+          ./package.sh all
+
+      - name: Get version from release file
+        id: version
+        run: echo "version=$(tr -d '[:space:]' < release)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "xMahjong v${{ steps.version.outputs.version }}"
+          body: |
+            ## Linux Packages
+
+            | Package | Format | Install |
+            |---------|--------|---------|
+            | `.deb` | Debian/Ubuntu | `sudo dpkg -i xmahjong_*.deb` |
+            | `.rpm` | Fedora/openSUSE | `sudo rpm -i xmahjong-*.rpm` |
+            | `.AppImage` | Universal | `chmod +x xmahjong-*.AppImage && ./xmahjong-*.AppImage` |
+
+            ### Dependencies
+            All packages require SDL2, SDL2_image, SDL2_mixer, and SDL2_ttf.
+            The AppImage bundles these libraries automatically.
+          files: |
+            target/package/*.deb
+            target/package/*.rpm
+            target/package/*.AppImage
+          fail_on_unmatched_files: true
