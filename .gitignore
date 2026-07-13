@@ -33,6 +33,8 @@ settings.json
 sdl2-dev/
 # Windows packaging: generated Cargo config with absolute SDL2 lib path
 .cargo/config.toml
+# WiX local extension cache (auto-populated by `wix extension add`)
+.wix/
 
 # Added by ggshield
 .cache_ggshield

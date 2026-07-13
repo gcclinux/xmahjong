@@ -39,6 +39,11 @@ jobs:
           wix --version
           wix extension add WixToolset.UI.wixext/5.0.2
 
+      - name: Remove stale WiX extension cache
+        shell: pwsh
+        run: |
+          if (Test-Path ".wix") { Remove-Item ".wix" -Recurse -Force }
+
       - name: Build portable ZIP and MSI
         shell: pwsh
         run: |
