@@ -31,10 +31,12 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Install WiX Toolset
-        env:
-          WIX_ACCEPT_OSMF: "true"
+        shell: pwsh
         run: |
+          dotnet tool uninstall --global wix 2>$null
           dotnet tool install --global wix --version 5.0.2
+          Write-Host "WiX version installed:"
+          wix --version
           wix extension add WixToolset.UI.wixext/5.0.2
 
       - name: Build portable ZIP and MSI
