@@ -32,8 +32,8 @@ jobs:
 
       - name: Install WiX Toolset
         run: |
-          dotnet tool install --global wix
-          wix extension add WixToolset.UI.wixext
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add WixToolset.UI.wixext/5.0.2
 
       - name: Build portable ZIP and MSI
         shell: pwsh
