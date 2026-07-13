@@ -1341,6 +1341,56 @@ impl Renderer {
         self.draw_bitmap_text(&shuffle_text, shuffle_x, 12, 2, Color::RGB(100, 150, 255));
     }
 
+    /// Renders a small, clickable "MENU" button in the bottom-left corner of the screen.
+    ///
+    /// This provides visual discoverability for the pause menu (ESC key).
+    /// The button is rendered as a compact pill with an "=" hamburger icon,
+    /// the word "MENU", and a subtle "ESC" hint — all in a style consistent
+    /// with the game's pixel-art aesthetic.
+    ///
+    /// Returns the bounding Rect of the button for hit-testing.
+    pub fn render_menu_button(&mut self) -> Rect {
+        let (_win_w, win_h) = self.window_size();
+
+        // Button dimensions and position (bottom-left, with padding)
+        let btn_w: u32 = 80;
+        let btn_h: u32 = 26;
+        let btn_x: i32 = 10;
+        let btn_y: i32 = win_h as i32 - btn_h as i32 - 10;
+
+        let btn_rect = Rect::new(btn_x, btn_y, btn_w, btn_h);
+
+        // Semi-transparent dark background
+        self.canvas.set_draw_color(Color::RGBA(25, 30, 40, 200));
+        self.canvas.fill_rect(btn_rect).ok();
+
+        // Subtle border (teal accent to match game palette)
+        self.canvas.set_draw_color(Color::RGB(60, 140, 140));
+        self.canvas.draw_rect(btn_rect).ok();
+
+        // Draw hamburger icon (three horizontal lines) at left side
+        let icon_x = btn_x + 6;
+        let icon_y = btn_y + 7;
+        let line_w: u32 = 8;
+        let line_h: u32 = 2;
+        self.canvas.set_draw_color(Color::RGB(150, 220, 220));
+        self.canvas.fill_rect(Rect::new(icon_x, icon_y, line_w, line_h)).ok();
+        self.canvas.fill_rect(Rect::new(icon_x, icon_y + 5, line_w, line_h)).ok();
+        self.canvas.fill_rect(Rect::new(icon_x, icon_y + 10, line_w, line_h)).ok();
+
+        // "ESC" text (small scale=1, muted color as a keyboard hint)
+        self.draw_bitmap_text("ESC", btn_x + 20, btn_y + 9, 1, Color::RGB(120, 180, 180));
+
+        // Separator dot
+        self.canvas.set_draw_color(Color::RGB(80, 130, 130));
+        self.canvas.fill_rect(Rect::new(btn_x + 39, btn_y + 11, 2, 2)).ok();
+
+        // "MENU" text (small scale=1, brighter)
+        self.draw_bitmap_text("MENU", btn_x + 45, btn_y + 9, 1, Color::RGB(200, 240, 240));
+
+        btn_rect
+    }
+
     /// Renders the pause menu overlay with game options.
     ///
     /// Menu items (rendered as placeholder buttons):
@@ -1372,7 +1422,7 @@ impl Renderer {
         let start_y = dialog.y() + 60;
         let spacing: i32 = 50;
 
-        let difficulty_label = format!("DIFFICULTY: {}", difficulty);
+        let difficulty_label = format!("MODE: {}", difficulty);
 
         let buttons: Vec<(Color, &str)> = vec![
             (Color::RGB(50, 140, 70), "NEW GAME"),

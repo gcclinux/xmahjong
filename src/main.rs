@@ -735,18 +735,33 @@ fn main() {
                 match action {
                     GameAction::SelectTile(x, y) => {
                         if game_state.status == GameStatus::Playing {
+                            // Check if click is on the menu button (bottom-left corner)
+                            let (win_w, win_h) = renderer.window_size();
+                            let menu_btn_x: i32 = 10;
+                            let menu_btn_y: i32 = win_h as i32 - 26 - 10;
+                            let menu_btn_w: i32 = 80;
+                            let menu_btn_h: i32 = 26;
+                            if x >= menu_btn_x && x < menu_btn_x + menu_btn_w
+                                && y >= menu_btn_y && y < menu_btn_y + menu_btn_h
+                            {
+                                // Clicked menu button — open pause menu
+                                game_state.status = GameStatus::Paused;
+                                game_state.timer.pause();
+                                pause_menu_selection = 0;
+                            }
                             // Check if click is on the HUD shuffle area (rightmost 1/5th)
-                            let (win_w, _win_h) = renderer.window_size();
-                            let section_w = win_w as i32 / 5;
-                            let shuffle_section_start = section_w * 4;
-                            if y >= 0 && y < 40 && x >= shuffle_section_start && x < win_w as i32 {
-                                // Clicked on shuffle in HUD
-                                match logic::shuffle(&mut game_state) {
-                                    Ok(()) => {
-                                        audio.play_shuffle();
-                                    }
-                                    Err(_) => {
-                                        audio.play_error();
+                            else if y >= 0 && y < 40 {
+                                let section_w = win_w as i32 / 5;
+                                let shuffle_section_start = section_w * 4;
+                                if x >= shuffle_section_start && x < win_w as i32 {
+                                    // Clicked on shuffle in HUD
+                                    match logic::shuffle(&mut game_state) {
+                                        Ok(()) => {
+                                            audio.play_shuffle();
+                                        }
+                                        Err(_) => {
+                                            audio.play_error();
+                                        }
                                     }
                                 }
                             } else {
@@ -1181,6 +1196,7 @@ fn main() {
             GameStatus::Playing => {
                 renderer.render_board(&game_state, layout_rect);
                 renderer.render_hud(&game_state);
+                let _ = renderer.render_menu_button();
 
                 // Show hint suggestion after inactivity
                 if !show_hint_suggestion
