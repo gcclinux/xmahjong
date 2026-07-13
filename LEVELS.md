@@ -113,3 +113,16 @@ Difficulty can be toggled at any time from the pause menu (ESC → "DIFFICULTY: 
 - Difficulty is stored in save files (`savegame.json`) so quitting mid-game preserves your setting.
 - Difficulty is recorded on leaderboard entries so scores show whether they were achieved on EASY or NORMAL.
 - Old save files and leaderboard entries without a difficulty field default to EASY for backwards compatibility.
+
+### Solvability vs. Getting Stuck
+
+An important distinction: **every generated board is always solvable**, regardless of difficulty. The reverse-deal algorithm guarantees that at least one complete solution path exists from start to finish.
+
+However, that does not mean the player will never get stuck. Mahjong solitaire is a game of strategy — the player freely chooses which pairs to remove, and some choices can block other pairs deeper in the layout. Even on a perfectly solvable board, removing pairs in the wrong order can lead to a dead end where no valid moves remain.
+
+This is where the difficulty setting matters:
+
+- On **Easy**, when you get stuck and use a shuffle, the game guarantees the reshuffled tiles will have valid pairs available so you can keep playing. But it does not guarantee the entire board is solvable from that reshuffled state — you may get stuck again later.
+- On **Normal**, the shuffle is purely random. It might give you playable pairs, or it might leave you stuck again immediately, requiring another shuffle.
+
+In both modes, getting stuck is a natural part of the game. Shuffles are the safety net — Easy makes each shuffle reliable, while Normal makes each shuffle a gamble. The skill in Mahjong solitaire lies in reading the board and choosing removal order carefully to avoid dead ends in the first place.

@@ -33,6 +33,9 @@ const VERSION_CHECK_URL: &str =
 /// URL to open for downloading the latest release.
 const RELEASE_DOWNLOAD_URL: &str = "https://github.com/gcclinux/xmahjong/releases/latest";
 
+/// URL for the About page.
+const ABOUT_URL: &str = "https://easysmartapps.co.uk/xmahjong";
+
 /// Maximum level number. Level progression stops at this level.
 const MAX_LEVEL: u32 = 50;
 
@@ -224,7 +227,7 @@ fn main() {
     let mut leaderboard_return_status = GameStatus::Won;
     // Track the currently selected menu item in the pause menu (0-indexed)
     let mut pause_menu_selection: usize = 0;
-    const PAUSE_MENU_ITEM_COUNT: usize = 8;
+    const PAUSE_MENU_ITEM_COUNT: usize = 9;
     // Track the currently selected menu item in the victory dialog (0-indexed)
     let mut victory_menu_selection: usize = 0;
     // Track the currently selected item in the No Moves dialog (0=Shuffle, 1=New Game)
@@ -413,6 +416,10 @@ fn main() {
                                     };
                                 }
                                 7 => {
+                                    // ABOUT — open website in default browser
+                                    let _ = open::that(ABOUT_URL);
+                                }
+                                8 => {
                                     // SAVE + QUIT
                                     if !dev_mode.enabled {
                                         save_current_game(&game_state);
@@ -794,7 +801,7 @@ fn main() {
                             // Handle clicks on pause menu buttons
                             let (win_w, win_h) = renderer.window_size();
                             let dialog_w: u32 = 300;
-                            let dialog_h: u32 = 490;
+                            let dialog_h: u32 = 540;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
 
@@ -850,6 +857,9 @@ fn main() {
                                         Difficulty::Normal => Difficulty::Easy,
                                     };
                                 } else if y >= start_y + spacing * 7 && y < start_y + spacing * 7 + btn_h as i32 {
+                                    // ABOUT — open website in default browser
+                                    let _ = open::that(ABOUT_URL);
+                                } else if y >= start_y + spacing * 8 && y < start_y + spacing * 8 + btn_h as i32 {
                                     // SAVE + QUIT
                                     if !dev_mode.enabled {
                                         save_current_game(&game_state);

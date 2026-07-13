@@ -1348,13 +1348,18 @@ impl Renderer {
     /// the word "MENU", and a subtle "ESC" hint — all in a style consistent
     /// with the game's pixel-art aesthetic.
     ///
+    /// On Linux the button is rendered larger for better readability at high DPI.
+    ///
     /// Returns the bounding Rect of the button for hit-testing.
     pub fn render_menu_button(&mut self) -> Rect {
         let (_win_w, win_h) = self.window_size();
 
-        // Button dimensions and position (bottom-left, with padding)
-        let btn_w: u32 = 80;
-        let btn_h: u32 = 26;
+        // On Linux, use a larger button and font scale for readability
+        #[cfg(target_os = "linux")]
+        let (btn_w, btn_h, text_scale, icon_scale): (u32, u32, u32, i32) = (120, 36, 2, 2);
+        #[cfg(not(target_os = "linux"))]
+        let (btn_w, btn_h, text_scale, icon_scale): (u32, u32, u32, i32) = (80, 26, 1, 1);
+
         let btn_x: i32 = 10;
         let btn_y: i32 = win_h as i32 - btn_h as i32 - 10;
 
@@ -1370,23 +1375,29 @@ impl Renderer {
 
         // Draw hamburger icon (three horizontal lines) at left side
         let icon_x = btn_x + 6;
-        let icon_y = btn_y + 7;
-        let line_w: u32 = 8;
-        let line_h: u32 = 2;
+        let icon_center_y = btn_y + btn_h as i32 / 2;
+        let line_w: u32 = (8 * icon_scale) as u32;
+        let line_h: u32 = (2 * icon_scale) as u32;
         self.canvas.set_draw_color(Color::RGB(150, 220, 220));
-        self.canvas.fill_rect(Rect::new(icon_x, icon_y, line_w, line_h)).ok();
-        self.canvas.fill_rect(Rect::new(icon_x, icon_y + 5, line_w, line_h)).ok();
-        self.canvas.fill_rect(Rect::new(icon_x, icon_y + 10, line_w, line_h)).ok();
+        self.canvas.fill_rect(Rect::new(icon_x, icon_center_y - 6 * icon_scale, line_w, line_h)).ok();
+        self.canvas.fill_rect(Rect::new(icon_x, icon_center_y - 1 * icon_scale, line_w, line_h)).ok();
+        self.canvas.fill_rect(Rect::new(icon_x, icon_center_y + 4 * icon_scale, line_w, line_h)).ok();
 
-        // "ESC" text (small scale=1, muted color as a keyboard hint)
-        self.draw_bitmap_text("ESC", btn_x + 20, btn_y + 9, 1, Color::RGB(120, 180, 180));
+        // "ESC" text (muted color as a keyboard hint)
+        let text_y = btn_y + (btn_h as i32 - 8 * text_scale as i32) / 2;
+        let esc_x = btn_x + 8 + (line_w as i32) + 4;
+        self.draw_bitmap_text("ESC", esc_x, text_y, text_scale, Color::RGB(120, 180, 180));
 
         // Separator dot
+        let esc_text_w = 3 * 6 * text_scale as i32; // "ESC" = 3 chars
+        let dot_x = esc_x + esc_text_w + 2;
+        let dot_size = (2 * icon_scale) as u32;
         self.canvas.set_draw_color(Color::RGB(80, 130, 130));
-        self.canvas.fill_rect(Rect::new(btn_x + 39, btn_y + 11, 2, 2)).ok();
+        self.canvas.fill_rect(Rect::new(dot_x, icon_center_y - icon_scale, dot_size, dot_size)).ok();
 
-        // "MENU" text (small scale=1, brighter)
-        self.draw_bitmap_text("MENU", btn_x + 45, btn_y + 9, 1, Color::RGB(200, 240, 240));
+        // "MENU" text (brighter)
+        let menu_x = dot_x + dot_size as i32 + 4;
+        self.draw_bitmap_text("MENU", menu_x, text_y, text_scale, Color::RGB(200, 240, 240));
 
         btn_rect
     }
@@ -1405,7 +1416,7 @@ impl Renderer {
     pub fn render_menu(&mut self, selected: usize, difficulty: &str) {
         self.draw_overlay_backdrop();
 
-        let dialog = self.draw_dialog_box(300, 490);
+        let dialog = self.draw_dialog_box(300, 540);
 
         // Title
         self.draw_bitmap_text(
@@ -1432,6 +1443,7 @@ impl Renderer {
             (Color::RGB(100, 140, 100), "SHORTCUTS"),
             (Color::RGB(50, 100, 180), "LEADERBOARD"),
             (Color::RGB(0, 130, 130), &difficulty_label),
+            (Color::RGB(80, 120, 180), "ABOUT"),
             (Color::RGB(200, 130, 50), "SAVE + QUIT"),
         ];
 
@@ -1453,7 +1465,7 @@ impl Renderer {
         self.draw_bitmap_text(
             "ESC RESUME  CTRL+S SAVE",
             dialog.x() + 20,
-            dialog.y() + 465,
+            dialog.y() + 515,
             1,
             Color::RGB(120, 120, 140),
         );
