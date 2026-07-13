@@ -1,0 +1,67 @@
+name: Release Windows Packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install WiX Toolset
+        run: |
+          dotnet tool install --global wix
+          wix extension add WixToolset.UI.wixext
+
+      - name: Build portable ZIP and MSI
+        shell: pwsh
+        run: |
+          .\package.ps1 -Action msi
+
+      - name: Get version from release file
+        id: version
+        shell: pwsh
+        run: |
+          $ver = (Get-Content release -Raw).Trim()
+          echo "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "xMahjong v${{ steps.version.outputs.version }}"
+          body: |
+            ## Windows Packages
+
+            | Package | Format | Install |
+            |---------|--------|---------|
+            | `.zip` | Portable | Extract and run `xmahjong.exe` |
+            | `.msi` | Installer | Double-click to install |
+
+            ### Dependencies
+            All SDL2 runtime DLLs are bundled in both packages.
+          files: |
+            target/package/*.zip
+            target/package/*.msi
+          fail_on_unmatched_files: true
