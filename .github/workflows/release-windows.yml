@@ -90,9 +90,9 @@ jobs:
 
             | Package | Format | Install |
             |---------|--------|---------|
-            | `.deb` | Debian/Ubuntu | `sudo dpkg -i xmahjong_*.deb` |
-            | `.rpm` | Fedora/openSUSE | `sudo rpm -i xmahjong-*.rpm` |
-            | `.AppImage` | Universal | `chmod +x xmahjong-*.AppImage && ./xmahjong-*.AppImage` |
+            | `.deb` | Debian/Ubuntu (x64 + arm64) | `sudo dpkg -i xmahjong_*.deb` |
+            | `.rpm` | Fedora/openSUSE (x64 + arm64) | `sudo rpm -i xmahjong-*.rpm` |
+            | `.AppImage` | Universal (x64 + arm64) | `chmod +x xmahjong-*.AppImage && ./xmahjong-*.AppImage` |
 
             ### Dependencies (Linux)
             All packages require SDL2, SDL2_image, SDL2_mixer, and SDL2_ttf.
