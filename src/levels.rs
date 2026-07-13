@@ -2,11 +2,14 @@
 //!
 //! Extracted from main.rs for testability.
 
-/// Returns the number of tiles to place for a given level (1-50).
-/// All three phases (Penguin 1-10, Dog 11-20, Space 21-50) use the same
-/// 10-level cycle: 36, 48, 60, 72, 84, 96, 108, 120, 132, 144.
+/// Returns the number of tiles to place for a given level (1-100).
+/// Levels 1-50: existing 10-level cycle (36, 48, 60, 72, 84, 96, 108, 120, 132, 144).
+/// Levels 51-100: always 144.
 /// All values are multiples of 4 (required for face pairing).
 pub fn tiles_for_level(level: u32) -> usize {
+    if level >= 51 {
+        return 144;
+    }
     let effective = ((level - 1) % 10) + 1;
     match effective {
         1 => 36,
@@ -22,12 +25,13 @@ pub fn tiles_for_level(level: u32) -> usize {
     }
 }
 
-/// Returns the face pool for a given level.
+/// Returns the face pool for a given level (1-100).
 /// - Levels 1-10: only penguin faces (0-49)
 /// - Levels 11-20: penguin faces (0-49) mixed with an increasing number of dog faces (50-99)
 ///   Level 11: 1 dog style added, Level 12: 2 dog styles, ... Level 15+: 5 dog styles
-/// - Levels 21-50: penguin (0-49) + dog (50-99) + space (100-149) faces
-///   Pool size grows linearly from 100 (level 21) to 200 (level 50)
+/// - Levels 21-100: penguin (0-49) + dog (50-99) + space (100-149) faces
+///   Levels 21-50: pool grows linearly from 100 to 200
+///   Levels 51-100: pool fixed at 200 (same as level 50)
 ///   Distribution: floor(pool_size/3) penguin, floor(pool_size/3) dog, remainder space
 pub fn face_pool_for_level(level: u32) -> Vec<u8> {
     if level <= 10 {
@@ -49,9 +53,11 @@ pub fn face_pool_for_level(level: u32) -> Vec<u8> {
         }
         pool
     } else {
-        // Space Phase: levels 21-50
+        // Space Phase: levels 21-100
         // Pool size: linear interpolation from 100 (level 21) to 200 (level 50)
-        let pool_size = 100 + ((level - 21) as usize * 100) / 29;
+        // For levels 51-100, clamp to level 50's formula output (pool_size = 200)
+        let effective_level = level.min(50);
+        let pool_size = 100 + ((effective_level - 21) as usize * 100) / 29;
         let per_set = pool_size / 3;
         let remainder = pool_size - per_set * 2; // space gets remainder
 

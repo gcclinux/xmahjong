@@ -252,7 +252,7 @@ impl ShuffleState {
 ///
 /// Stores only the minimal data needed to reconstruct the game:
 /// board tile face IDs (None for removed), undo stack, timer, and score tracker.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedGame {
     /// For each of the 144 positions: `Some(face_id)` if a tile is present, `None` if removed.
     pub tiles: Vec<Option<u8>>,
@@ -306,13 +306,13 @@ fn default_difficulty_str() -> String {
 
 impl SavedGame {
     /// Loads a saved game from disk. Returns None if no save exists, is corrupt,
-    /// or contains a level outside the valid range (1-50).
+    /// or contains a level outside the valid range (1-100).
     pub fn load() -> Option<Self> {
         let path = storage_dir().join("savegame.json");
         match fs::read_to_string(&path) {
             Ok(contents) => {
                 let saved: Option<Self> = serde_json::from_str(&contents).ok();
-                saved.filter(|s| (1..=50).contains(&s.level))
+                saved.filter(|s| (1..=100).contains(&s.level))
             }
             Err(_) => None,
         }

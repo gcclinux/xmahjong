@@ -1,6 +1,6 @@
 # Level Design
 
-xMahjong has 50 levels split into three phases: **Penguin Phase** (1-10), **Dog Phase** (11-20), and **Space Phase** (21-50).
+xMahjong has 100 levels split into four phases: **Penguin Phase** (1-10), **Dog Phase** (11-20), **Space Phase** (21-50), and **Endgame Phase** (51-100).
 
 ## Penguin Phase (Levels 1-10)
 
@@ -75,6 +75,22 @@ Levels 21-50 mix tiles from all three themes: penguin (face IDs 0-49), dog (face
 
 The face pool size grows linearly using the formula `pool_size = 100 + ((level - 21) * 100) / 29` (integer division), interpolating from 100 face IDs at level 21 to 200 at level 50. The pool is distributed as evenly as possible across the three tile sets: `floor(pool_size / 3)` IDs go to penguins, `floor(pool_size / 3)` to dogs, and the remainder to space. Face IDs are selected contiguously from the start of each set's range (penguin from 0, dog from 50, space from 100). The tile count follows the same 10-level cycle as earlier phases (36, 48, 60, 72, 84, 96, 108, 120, 132, 144), repeating three times across levels 21-30, 31-40, and 41-50. Face IDs wrap modulo 50 within each tile set, so levels with per-set counts above 50 will see repeated tile faces in the pool.
 
+## Endgame Phase (Levels 51-100)
+
+Levels 51-100 use fixed maximum parameters identical to level 50: 144 tiles, 72 pairs, and a 200-entry face pool drawn from all three themes (penguins, dogs, space). Each level generates a unique random board layout via clock-derived seeds, providing unlimited replayability at maximum difficulty.
+
+| Parameter | Value |
+|-----------|-------|
+| Tiles | 144 |
+| Pairs | 72 |
+| Face Pool Size | 200 |
+| Penguin entries | 66 (IDs 0-49, with 0-15 repeated) |
+| Dog entries | 66 (IDs 50-99, with 50-65 repeated) |
+| Space entries | 68 (IDs 100-149, with 100-117 repeated) |
+| Theme | Penguins + Dogs + Space (full board) |
+
+Since all parameters are fixed, the variety across levels 51-100 comes entirely from the random tile placement. The generator uses a clock-derived seed at the moment of board generation, ensuring every play session produces a different arrangement even though the tile count and face pool remain constant.
+
 ## How It Works
 
 - **Tile count** must always be a multiple of 4 (each face ID needs exactly 4 tiles to form 2 matchable pairs).
@@ -84,9 +100,9 @@ The face pool size grows linearly using the formula `pool_size = 100 + ((level -
 
 ## Progression
 
-- Completing a level shows a "NEXT LEVEL" button on the victory screen (up to level 50).
+- Completing a level shows a "NEXT LEVEL" button on the victory screen (up to level 99).
 - "NEW GAME" always resets to level 1.
-- At level 50 (max), only "NEW GAME" and "LEADERBOARD" buttons are shown.
+- At level 100 (max), only "NEW GAME" and "LEADERBOARD" buttons are shown.
 - The current level is displayed on the HUD between Score and Shuffle.
 - Level is persisted in save files so quitting mid-game resumes at the correct level.
 

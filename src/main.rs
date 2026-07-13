@@ -37,7 +37,7 @@ const RELEASE_DOWNLOAD_URL: &str = "https://github.com/gcclinux/xmahjong/release
 const ABOUT_URL: &str = "https://easysmartapps.co.uk/xmahjong";
 
 /// Maximum level number. Level progression stops at this level.
-const MAX_LEVEL: u32 = 50;
+const MAX_LEVEL: u32 = 100;
 
 /// State for the update-available dialog shown at startup.
 struct UpdateInfo {
@@ -130,10 +130,10 @@ fn parse_dev_args() -> DevMode {
             "--level" => {
                 if i + 1 < args.len() {
                     if let Ok(lvl) = args[i + 1].parse::<u32>() {
-                        if (1..=50).contains(&lvl) {
+                        if (1..=100).contains(&lvl) {
                             start_level = lvl;
                         } else {
-                            eprintln!("[xMahjong] Warning: --level must be 1-50, got {}. Using 1.", lvl);
+                            eprintln!("[xMahjong] Warning: --level must be 1-100, got {}. Using 1.", lvl);
                         }
                     }
                     i += 1;
