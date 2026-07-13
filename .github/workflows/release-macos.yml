@@ -1,4 +1,4 @@
-name: Release Linux Packages
+name: Release macOS Packages
 
 on:
   workflow_dispatch:
@@ -10,8 +10,8 @@ permissions:
   contents: write
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-22.04
+  build-macos:
+    runs-on: macos-latest
 
     steps:
       - name: Checkout
@@ -30,27 +30,23 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            dpkg-dev rpm wget
+      - name: Install SDL2 dependencies
+        run: brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf
 
       - name: Build packages
         run: |
-          chmod +x package.sh
-          ./package.sh all
+          chmod +x package_macos.sh
+          ./package_macos.sh all
 
       - name: Get version from release file
         id: version
         run: echo "version=$(tr -d '[:space:]' < release)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Linux packages to release
+      - name: Upload macOS packages to release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: "v${{ steps.version.outputs.version }}"
           files: |
-            target/package/*.deb
-            target/package/*.rpm
-            target/package/*.AppImage
+            target/package/*.dmg
+            target/package/*.zip
           fail_on_unmatched_files: true

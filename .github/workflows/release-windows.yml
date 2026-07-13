@@ -69,8 +69,34 @@ jobs:
             | `.zip` | Portable | Extract and run `xmahjong.exe` |
             | `.msi` | Installer | Double-click to install |
 
-            ### Dependencies
+            ### Dependencies (Windows)
             All SDL2 runtime DLLs are bundled in both packages.
+
+            ---
+
+            ## macOS Packages
+
+            | Package | Format | Install |
+            |---------|--------|---------|
+            | `.dmg` | Disk Image | Open and drag to Applications |
+            | `.zip` | App Bundle | Extract and run `xMahjong.app` |
+
+            ### Dependencies (macOS)
+            All SDL2 libraries are bundled inside the .app. No Homebrew needed.
+
+            ---
+
+            ## Linux Packages
+
+            | Package | Format | Install |
+            |---------|--------|---------|
+            | `.deb` | Debian/Ubuntu | `sudo dpkg -i xmahjong_*.deb` |
+            | `.rpm` | Fedora/openSUSE | `sudo rpm -i xmahjong-*.rpm` |
+            | `.AppImage` | Universal | `chmod +x xmahjong-*.AppImage && ./xmahjong-*.AppImage` |
+
+            ### Dependencies (Linux)
+            All packages require SDL2, SDL2_image, SDL2_mixer, and SDL2_ttf.
+            The AppImage bundles these libraries automatically.
           files: |
             target/package/*.zip
             target/package/*.msi
