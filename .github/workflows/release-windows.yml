@@ -34,10 +34,10 @@ jobs:
         shell: pwsh
         run: |
           dotnet tool uninstall --global wix 2>$null
-          dotnet tool install --global wix --version 5.0.2
+          dotnet tool install --global wix --version 4.0.5
           Write-Host "WiX version installed:"
           wix --version
-          wix extension add WixToolset.UI.wixext/5.0.2
+          wix extension add -g WixToolset.UI.wixext/4.0.5
 
       - name: Remove stale WiX extension cache
         shell: pwsh
