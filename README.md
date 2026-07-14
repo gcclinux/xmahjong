@@ -214,6 +214,12 @@ open xMahjong-0.1.0-arm64.dmg
 ```
 Double-click the `.dmg` to mount it, then drag `xMahjong.app` into the Applications folder. No additional dependencies are needed.
 
+**macOS Gatekeeper notice:**
+Since the app is ad-hoc signed (not notarized with Apple), macOS may block it with a "cannot verify" warning. To allow it to run, remove the quarantine attribute:
+```bash
+xattr -cr /Applications/xMahjong.app
+```
+
 ## Assets
 
 ![Tux Penguin Sprite Sheet](sprite/tux-sprite-xmahjong.png)
