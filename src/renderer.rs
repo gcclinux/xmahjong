@@ -56,7 +56,7 @@ const MIN_WIDTH: u32 = 800;
 
 /// Minimum window width in pixels.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-const MIN_WIDTH: u32 = 1920;
+const MIN_WIDTH: u32 = 800;
 
 /// Minimum window height in pixels.
 #[cfg(target_os = "macos")]
@@ -68,7 +68,7 @@ const MIN_HEIGHT: u32 = 600;
 
 /// Minimum window height in pixels.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-const MIN_HEIGHT: u32 = 1080;
+const MIN_HEIGHT: u32 = 600;
 
 /// Resolves the assets directory path at runtime.
 /// Checks in order:

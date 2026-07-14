@@ -6,7 +6,7 @@ A Tux-themed Mahjong solitaire game for Linux, windows & MacOS built with Rust a
 
 xMahjong is a classic tile-matching solitaire game featuring Tux penguin-themed graphics. Clear all 144 tiles from the board by matching pairs of free tiles. The game uses the traditional Turtle layout with 5 stacked layers, and every generated board is guaranteed to be solvable.
 
-![v0.1.4](sprite/latest.png)
+![v0.1.5](sprite/latest.png)
 
 Example
 
