@@ -200,14 +200,38 @@ fn main() {
         create_new_game_state()
     };
 
-    // 6b. Load persistent shuffle state and apply daily bonus
+    // 6b. Load persistent shuffle state and apply daily bonus/streak
     let mut shuffle_state = ShuffleState::load();
     let today = current_date_string();
+    let today_days = {
+        use std::time::SystemTime;
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        now / 86400
+    };
     let daily_bonus = shuffle_state.claim_daily_bonus(&today);
-    shuffle_state.save();
-    // Apply daily bonus (+1 shuffle) to the game state
+    let mut daily_streak_achievement = None;
     if daily_bonus {
         game_state.shuffles_remaining += 1;
+        if !dev_mode.enabled {
+            let last_days = shuffle_state.last_launch_epoch_days;
+            if last_days == 0 {
+                shuffle_state.consecutive_days = 1;
+                daily_streak_achievement = Some(1);
+            } else if last_days == today_days - 1 {
+                shuffle_state.consecutive_days += 1;
+                daily_streak_achievement = Some(shuffle_state.consecutive_days);
+            } else {
+                shuffle_state.consecutive_days = 1;
+                daily_streak_achievement = Some(1);
+            }
+            shuffle_state.last_launch_epoch_days = today_days;
+        }
+    }
+    if !dev_mode.enabled {
+        shuffle_state.save();
     }
 
     // 6c. Resumed games stay in Playing state even if no valid moves remain.
@@ -261,6 +285,17 @@ fn main() {
 
         // --- 7a. Poll SDL2 events and process through InputHandler ---
         for event in event_pump.poll_iter() {
+            // Dismiss daily streak popup on any keydown or click
+            if daily_streak_achievement.is_some() {
+                match event {
+                    sdl2::event::Event::KeyDown { .. } | sdl2::event::Event::MouseButtonDown { .. } => {
+                        daily_streak_achievement = None;
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+
             // --- Handle name entry state input first ---
             if game_state.status == GameStatus::NameEntry {
                 if let Some(ref mut entry) = name_entry {
@@ -281,6 +316,7 @@ fn main() {
                                     // Submit the name if valid
                                     if entry.is_valid() {
                                         let date = current_date_string();
+                                        let shuffle_state_loaded = ShuffleState::load();
                                         let lb_entry = LeaderboardEntry {
                                             name: entry.text.clone(),
                                             score: entry.score,
@@ -293,6 +329,7 @@ fn main() {
                                                 Difficulty::Normal => "normal".to_string(),
                                             },
                                             date,
+                                            consecutive_days: shuffle_state_loaded.consecutive_days,
                                         };
                                         if !dev_mode.enabled {
                                             let mut leaderboard = Leaderboard::load();
@@ -610,7 +647,10 @@ fn main() {
                                     let hints_used = game_state.base_hints + game_state.score.hints_used;
                                     let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
                                     let undos_used = game_state.base_undos + game_state.score.undos_used;
-                                    name_entry = Some(NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used));
+                                    let last_name = Leaderboard::load().entries.first().map(|e| e.name.clone()).unwrap_or_default();
+                                    let mut entry_state = NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used);
+                                    entry_state.text = last_name;
+                                    name_entry = Some(entry_state);
                                     name_entry_from_game_over = true;
                                     game_state.status = GameStatus::NameEntry;
                                 }
@@ -791,7 +831,10 @@ fn main() {
                                         let hints_used = game_state.base_hints + game_state.score.hints_used;
                                         let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
                                         let undos_used = game_state.base_undos + game_state.score.undos_used;
-                                        name_entry = Some(NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used));
+                                        let last_name = leaderboard.entries.first().map(|e| e.name.clone()).unwrap_or_default();
+                                        let mut entry_state = NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used);
+                                        entry_state.text = last_name;
+                                        name_entry = Some(entry_state);
                                         name_entry_from_game_over = false;
                                         game_state.status = GameStatus::NameEntry;
                                     }
@@ -923,7 +966,10 @@ fn main() {
                                 let hints_used = game_state.base_hints + game_state.score.hints_used;
                                 let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
                                 let undos_used = game_state.base_undos + game_state.score.undos_used;
-                                name_entry = Some(NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used));
+                                let last_name = Leaderboard::load().entries.first().map(|e| e.name.clone()).unwrap_or_default();
+                                let mut entry_state = NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used);
+                                entry_state.text = last_name;
+                                name_entry = Some(entry_state);
                                 name_entry_from_game_over = true;
                                 game_state.status = GameStatus::NameEntry;
                             }
@@ -1018,19 +1064,17 @@ fn main() {
                                 }
                             }
                         } else if game_state.status == GameStatus::Leaderboard {
-                            // Handle clicks on Leaderboard dialog (Back button)
+                            // Handle clicks on Achievements dialog (Back button)
                             let (win_w, win_h) = renderer.window_size();
-                            let leaderboard = Leaderboard::load();
-                            let entry_count = leaderboard.entries.len();
-                            let dialog_h: u32 = 100 + (entry_count.max(1) as u32 * 28) + 70;
-                            let dialog_w: u32 = 620;
+                            let dialog_w: u32 = 900;
+                            let dialog_h: u32 = 580;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
 
                             let btn_w: u32 = 180;
                             let btn_h: u32 = 40;
                             let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
-                            let btn_y = dialog_y as i32 + dialog_h as i32 - 55;
+                            let btn_y = dialog_y as i32 + dialog_h as i32 - 50;
 
                             if x >= btn_x && x < btn_x + btn_w as i32
                                 && y >= btn_y && y < btn_y + btn_h as i32
@@ -1269,7 +1313,9 @@ fn main() {
             }
         }
 
-        if quit_confirmation {
+        if let Some(streak) = daily_streak_achievement {
+            renderer.render_daily_streak_popup(streak);
+        } else if quit_confirmation {
             renderer.render_quit_confirmation();
         }
 

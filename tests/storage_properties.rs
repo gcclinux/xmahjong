@@ -29,36 +29,24 @@ proptest! {
                 undos_used: 0,
                 difficulty: "easy".to_string(),
                 date: "2024-01-01".to_string(),
+                consecutive_days: 0,
             });
         }
 
         let entries = &leaderboard.entries;
 
-        // Invariant 1: At most 10 entries
-        prop_assert!(
-            entries.len() <= 10,
-            "Leaderboard has {} entries, expected at most 10",
+        // Invariant 1: Exactly 1 entry (the latest match)
+        prop_assert_eq!(
+            entries.len(), 1,
+            "Leaderboard has {} entries, expected exactly 1",
             entries.len()
         );
 
-        // Invariant 2: Sorted descending by score
-        for i in 0..entries.len().saturating_sub(1) {
-            prop_assert!(
-                entries[i].score >= entries[i + 1].score,
-                "Leaderboard not sorted descending: entries[{}].score={} < entries[{}].score={}",
-                i, entries[i].score, i + 1, entries[i + 1].score
-            );
-        }
-
-        // Invariant 3: Contains only top 10 highest scores from input
-        let mut sorted_scores = scores.clone();
-        sorted_scores.sort_unstable_by(|a, b| b.cmp(a));
-        sorted_scores.truncate(10);
-
-        let leaderboard_scores: Vec<u32> = entries.iter().map(|e| e.score).collect();
+        // Invariant 2: Matches the last score in sequence
+        let last_score = *scores.last().unwrap();
         prop_assert_eq!(
-            leaderboard_scores, sorted_scores,
-            "Leaderboard scores do not match top 10 from input"
+            entries[0].score, last_score,
+            "Latest score did not match last inserted score"
         );
     }
 }

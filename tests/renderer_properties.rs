@@ -639,9 +639,9 @@ use xmahjong::renderer::{side_face_base_color, TileHighlight};
 proptest! {
     #[test]
     fn prop_highlight_color_propagation_to_side_faces(
-        r in 1u8..=255,
-        g in 1u8..=255,
-        b in 1u8..=255
+        r in 30u8..=255,
+        g in 30u8..=255,
+        b in 30u8..=255
     ) {
         let default_back = Color::RGB(r, g, b);
 

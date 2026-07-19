@@ -14,7 +14,7 @@ use sdl2::video::{Window, WindowContext};
 
 use crate::board::TilePosition;
 use crate::game_state::{Animation, GameState};
-use crate::storage::Leaderboard;
+use crate::storage::{Leaderboard, ShuffleState};
 
 /// Number of distinct tile face images per style.
 const TILE_FACE_COUNT: usize = 50;
@@ -405,6 +405,23 @@ pub struct Renderer {
     /// Background texture (None if not loaded).
     /// SAFETY: References texture_creator, must be dropped before it.
     pub background_texture: Option<Texture<'static>>,
+    /// Trophy textures.
+    /// SAFETY: These textures reference texture_creator and must be dropped first.
+    pub trophy_no_shuffle: Option<Texture<'static>>,
+    pub trophy_no_undo: Option<Texture<'static>>,
+    pub trophy_no_hint: Option<Texture<'static>>,
+    // Streak trophies
+    pub trophy_streak_zero: Option<Texture<'static>>,
+    pub trophy_streak_one_day: Option<Texture<'static>>,
+    pub trophy_streak_two_days: Option<Texture<'static>>,
+    pub trophy_streak_seven_days: Option<Texture<'static>>,
+    pub trophy_streak_fourteen_days: Option<Texture<'static>>,
+    pub trophy_streak_thirty_days: Option<Texture<'static>>,
+    pub trophy_streak_sixty_days: Option<Texture<'static>>,
+    pub trophy_streak_three_months: Option<Texture<'static>>,
+    pub trophy_streak_six_months: Option<Texture<'static>>,
+    pub trophy_streak_nine_months: Option<Texture<'static>>,
+    pub trophy_streak_one_year: Option<Texture<'static>>,
     /// Texture creator bound to the window context (for creating textures at runtime).
     pub texture_creator: TextureCreator<WindowContext>,
     /// Whether the tile back texture was loaded.
@@ -518,12 +535,85 @@ impl Renderer {
         let (background_loaded, background_texture) = Self::load_background(&texture_creator, &base);
         let ui_textures = Self::load_ui_textures(&texture_creator, &base);
 
+        let trophy_no_shuffle = match texture_creator.load_texture(&format!("{}/trophies/no-shuffle.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_no_undo = match texture_creator.load_texture(&format!("{}/trophies/no-undo.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_no_hint = match texture_creator.load_texture(&format!("{}/trophies/no-hint.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+
+        // Load Streak Trophies
+        let trophy_streak_zero = match texture_creator.load_texture(&format!("{}/trophies/zero.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_one_day = match texture_creator.load_texture(&format!("{}/trophies/one_day.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_two_days = match texture_creator.load_texture(&format!("{}/trophies/two_days.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_seven_days = match texture_creator.load_texture(&format!("{}/trophies/seven_days.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_fourteen_days = match texture_creator.load_texture(&format!("{}/trophies/fourteen_days.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_thirty_days = match texture_creator.load_texture(&format!("{}/trophies/thirty_days.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_sixty_days = match texture_creator.load_texture(&format!("{}/trophies/sixty_days.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_three_months = match texture_creator.load_texture(&format!("{}/trophies/three_months.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_six_months = match texture_creator.load_texture(&format!("{}/trophies/six_months.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_nine_months = match texture_creator.load_texture(&format!("{}/trophies/nine_months.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+        let trophy_streak_one_year = match texture_creator.load_texture(&format!("{}/trophies/one_year.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
+
         Ok(Self {
             canvas,
             texture_creator,
             ttf_context,
             tile_textures,
             background_texture,
+            trophy_no_shuffle,
+            trophy_no_undo,
+            trophy_no_hint,
+            trophy_streak_zero,
+            trophy_streak_one_day,
+            trophy_streak_two_days,
+            trophy_streak_seven_days,
+            trophy_streak_fourteen_days,
+            trophy_streak_thirty_days,
+            trophy_streak_sixty_days,
+            trophy_streak_three_months,
+            trophy_streak_six_months,
+            trophy_streak_nine_months,
+            trophy_streak_one_year,
             tile_back_loaded,
             background_loaded,
             ui_textures,
@@ -1477,7 +1567,7 @@ impl Renderer {
             (Color::RGB(50, 160, 170), "HINT"),
             (Color::RGB(120, 60, 160), "SHUFFLE"),
             (Color::RGB(100, 140, 100), "SHORTCUTS"),
-            (Color::RGB(50, 100, 180), "LEADERBOARD"),
+            (Color::RGB(50, 100, 180), "ACHIEVEMENTS"),
             (Color::RGB(0, 130, 130), &difficulty_label),
             (Color::RGB(80, 120, 180), "ABOUT"),
             (Color::RGB(200, 130, 50), "SAVE + QUIT"),
@@ -1614,7 +1704,7 @@ impl Renderer {
             let buttons: &[(i32, Color, &str)] = &[
                 (155, Color::RGB(120, 60, 180), "NEXT LEVEL"),
                 (215, Color::RGB(50, 140, 70), "NEW GAME"),
-                (275, Color::RGB(50, 100, 180), "LEADERBOARD"),
+                (275, Color::RGB(50, 100, 180), "ACHIEVEMENTS"),
             ];
 
             for (i, (y_off, color, label)) in buttons.iter().enumerate() {
@@ -1631,7 +1721,7 @@ impl Renderer {
         } else {
             let buttons: &[(i32, Color, &str)] = &[
                 (160, Color::RGB(50, 140, 70), "NEW GAME"),
-                (220, Color::RGB(50, 100, 180), "LEADERBOARD"),
+                (220, Color::RGB(50, 100, 180), "ACHIEVEMENTS"),
             ];
 
             for (i, (y_off, color, label)) in buttons.iter().enumerate() {
@@ -1648,94 +1738,284 @@ impl Renderer {
         }
     }
 
-    /// Renders the leaderboard view showing the top 10 scores.
+    /// Renders the achievements view showing the last match stats and earned trophies.
     pub fn render_leaderboard(&mut self) {
         self.draw_overlay_backdrop();
 
         let leaderboard = Leaderboard::load();
-        let entry_count = leaderboard.entries.len();
+        let shuffle_state = ShuffleState::load();
+        let current_streak = shuffle_state.consecutive_days;
+        
+        let dialog_w: u32 = 900;
+        let dialog_h: u32 = 580;
+        let dialog = self.draw_dialog_box(dialog_w, dialog_h);
 
-        // Dialog sized to fit header + up to 10 entries + back button
-        let dialog_h: u32 = 100 + (entry_count.max(1) as u32 * 28) + 70;
-        let dialog = self.draw_dialog_box(770, dialog_h);
-
-        // Title
+        // Futuristic neon turquoise title (centered, scale 4)
+        let title = "ACHIEVEMENTS";
+        let title_w = title.len() as i32 * 6 * 4;
         self.draw_bitmap_text(
-            "LEADERBOARD",
-            dialog.x() + 210,
+            title,
+            dialog.x() + (dialog.width() as i32 - title_w) / 2,
             dialog.y() + 20,
-            3,
-            Color::RGB(255, 215, 0),
+            4,
+            Color::RGB(0, 255, 220),
         );
 
-        // Column headers
-        let header = format!(
-            "{:<2} {:<10} {:>5}  {:>5} {:>4} {:>7} {:>4}  {:>6}",
-            "#", "NAME", "SCORE", "TIME", "HINT", "SHUFFLE", "UNDO", "LEVEL"
-        );
-        self.draw_bitmap_text(
-            &header,
-            dialog.x() + 20,
-            dialog.y() + 65,
-            2,
-            Color::RGB(150, 150, 150),
-        );
+        // Futuristic divider grid line under the title
+        let line_y = dialog.y() + 65;
+        self.canvas.set_draw_color(Color::RGB(0, 180, 255));
+        self.canvas.draw_line(
+            sdl2::rect::Point::new(dialog.x() + 20, line_y),
+            sdl2::rect::Point::new(dialog.x() + dialog.width() as i32 - 20, line_y)
+        ).ok();
 
-        if entry_count == 0 {
-            self.draw_bitmap_text(
-                "NO SCORES YET",
-                dialog.x() + 220,
-                dialog.y() + 100,
-                2,
-                Color::RGB(120, 120, 120),
-            );
+        // Left Panel: Last Match Stats
+        let stats_panel = Rect::new(dialog.x() + 30, dialog.y() + 85, 340, 410);
+        self.canvas.set_draw_color(Color::RGB(50, 80, 120));
+        self.canvas.draw_rect(stats_panel).ok();
+        let stats_panel_inner = Rect::new(stats_panel.x() + 2, stats_panel.y() + 2, stats_panel.width() - 4, stats_panel.height() - 4);
+        self.canvas.set_draw_color(Color::RGB(25, 30, 45));
+        self.canvas.fill_rect(stats_panel_inner).ok();
+
+        // Right Panel: Trophy Cabinet
+        let cabinet_panel = Rect::new(dialog.x() + 400, dialog.y() + 85, 470, 410);
+        self.canvas.set_draw_color(Color::RGB(50, 80, 120));
+        self.canvas.draw_rect(cabinet_panel).ok();
+        let cabinet_panel_inner = Rect::new(cabinet_panel.x() + 2, cabinet_panel.y() + 2, cabinet_panel.width() - 4, cabinet_panel.height() - 4);
+        self.canvas.set_draw_color(Color::RGB(25, 30, 45));
+        self.canvas.fill_rect(cabinet_panel_inner).ok();
+
+        // Cabinet Shelves
+        let top_shelf_y = cabinet_panel.y() + 185;
+        let bottom_shelf_y = cabinet_panel.y() + 365;
+
+        // Draw top shelf line
+        self.canvas.set_draw_color(Color::RGB(205, 127, 50)); // Wooden brown
+        self.canvas.fill_rect(Rect::new(cabinet_panel.x() + 80, top_shelf_y, cabinet_panel.width() - 160, 6)).ok();
+
+        // Draw bottom shelf line
+        self.canvas.fill_rect(Rect::new(cabinet_panel.x() + 15, bottom_shelf_y, cabinet_panel.width() - 30, 8)).ok();
+
+        let trophy_size = 128;
+
+        let has_last_match = !leaderboard.entries.is_empty();
+        
+        let (hints_used, shuffles_used, undos_used, streak_days) = if has_last_match {
+            let entry = &leaderboard.entries[0];
+            let label_x = stats_panel.x() + 20;
+            let val_x = stats_panel.x() + 180;
+            
+            // Draw Left Panel text
+            self.draw_bitmap_text("LAST MATCH STATS", stats_panel.x() + 20, stats_panel.y() + 20, 2, Color::RGB(0, 180, 255));
+            
+            self.draw_bitmap_text("PLAYER:", label_x, stats_panel.y() + 55, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&entry.name, val_x, stats_panel.y() + 55, 2, Color::RGB(255, 255, 255));
+
+            self.draw_bitmap_text("SCORE:", label_x, stats_panel.y() + 80, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{}", entry.score), val_x, stats_panel.y() + 80, 2, Color::RGB(0, 255, 150));
+            
+            let minutes = entry.time_seconds / 60;
+            let seconds = entry.time_seconds % 60;
+            self.draw_bitmap_text("TIME:", label_x, stats_panel.y() + 105, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{:02}:{:02}", minutes, seconds), val_x, stats_panel.y() + 105, 2, Color::RGB(255, 255, 255));
+            
+            let diff_label = match entry.difficulty.as_str() {
+                "normal" => "NORM",
+                _ => "EASY",
+            };
+            let diff_color = match entry.difficulty.as_str() {
+                "normal" => Color::RGB(255, 120, 100),
+                _ => Color::RGB(100, 220, 100),
+            };
+            self.draw_bitmap_text("MODE:", label_x, stats_panel.y() + 130, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(diff_label, val_x, stats_panel.y() + 130, 2, diff_color);
+
+            self.draw_bitmap_text("HINTS:", label_x, stats_panel.y() + 160, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{}", entry.hints_used), val_x, stats_panel.y() + 160, 2, Color::RGB(255, 255, 255));
+
+            self.draw_bitmap_text("SHUFFLES:", label_x, stats_panel.y() + 185, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{}", entry.shuffles_used), val_x, stats_panel.y() + 185, 2, Color::RGB(255, 255, 255));
+
+            self.draw_bitmap_text("UNDOS:", label_x, stats_panel.y() + 210, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{}", entry.undos_used), val_x, stats_panel.y() + 210, 2, Color::RGB(255, 255, 255));
+
+            self.draw_bitmap_text("DAILY STREAK:", label_x, stats_panel.y() + 235, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{} DAYS", entry.consecutive_days), val_x, stats_panel.y() + 235, 2, Color::RGB(255, 200, 0));
+
+            (entry.hints_used, entry.shuffles_used, entry.undos_used, entry.consecutive_days)
         } else {
-            for (i, entry) in leaderboard.entries.iter().enumerate() {
-                let y = dialog.y() + 90 + (i as i32 * 28);
+            let label_x = stats_panel.x() + 20;
+            let val_x = stats_panel.x() + 180;
 
-                // Truncate name to 10 chars for display
-                let name_display: String = entry.name.chars().take(10).collect();
-                let name_padded = format!("{:<10}", name_display);
+            self.draw_bitmap_text("LAST MATCH STATS", stats_panel.x() + 20, stats_panel.y() + 20, 2, Color::RGB(0, 180, 255));
+            self.draw_bitmap_text("NO MATCHES YET", stats_panel.x() + 20, stats_panel.y() + 75, 2, Color::RGB(150, 150, 150));
+            self.draw_bitmap_text("WIN A GAME", stats_panel.x() + 20, stats_panel.y() + 120, 2, Color::RGB(255, 255, 255));
+            self.draw_bitmap_text("TO EARN TROPHIES!", stats_panel.x() + 20, stats_panel.y() + 145, 2, Color::RGB(255, 255, 255));
+            
+            self.draw_bitmap_text("DAILY STREAK:", label_x, stats_panel.y() + 235, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{} DAYS", current_streak), val_x, stats_panel.y() + 235, 2, Color::RGB(255, 200, 0));
+            (1, 1, 1, current_streak) // default locked values
+        };
 
-                let minutes = entry.time_seconds / 60;
-                let seconds = entry.time_seconds % 60;
-                let diff_label = match entry.difficulty.as_str() {
-                    "normal" => "NORMAL",
-                    _ => "EASY",
-                };
-                let line = format!(
-                    "{:<2} {} {:>5}  {:02}:{:02} {:>4} {:>7} {:>4}  {:>6}",
-                    i + 1,
-                    name_padded,
-                    entry.score,
-                    minutes,
-                    seconds,
-                    entry.hints_used,
-                    entry.shuffles_used,
-                    entry.undos_used,
-                    diff_label,
-                );
+        // Render Trophies in the Cabinet
+        self.draw_bitmap_text("TROPHY SHELF", cabinet_panel.x() + 20, cabinet_panel.y() + 20, 2, Color::RGB(0, 180, 255));
 
-                let color = if i == 0 {
-                    Color::RGB(255, 215, 0)  // Gold for 1st
-                } else if i == 1 {
-                    Color::RGB(192, 192, 192) // Silver for 2nd
-                } else if i == 2 {
-                    Color::RGB(205, 127, 50)  // Bronze for 3rd
-                } else {
-                    Color::RGB(200, 200, 200) // White for rest
-                };
+        // Top Shelf: Daily Play Streak Milestone Trophy (centered above Bottom Shelf middle trophy)
+        let t_streak_x = cabinet_panel.x() + 171;
+        let t_streak_y = top_shelf_y - 128;
 
-                self.draw_bitmap_text(&line, dialog.x() + 20, y, 2, color);
+        let streak_tex = if streak_days >= 365 {
+            &mut self.trophy_streak_one_year
+        } else if streak_days >= 270 {
+            &mut self.trophy_streak_nine_months
+        } else if streak_days >= 180 {
+            &mut self.trophy_streak_six_months
+        } else if streak_days >= 90 {
+            &mut self.trophy_streak_three_months
+        } else if streak_days >= 60 {
+            &mut self.trophy_streak_sixty_days
+        } else if streak_days >= 30 {
+            &mut self.trophy_streak_thirty_days
+        } else if streak_days >= 14 {
+            &mut self.trophy_streak_fourteen_days
+        } else if streak_days >= 7 {
+            &mut self.trophy_streak_seven_days
+        } else if streak_days >= 2 {
+            &mut self.trophy_streak_two_days
+        } else if streak_days >= 1 {
+            &mut self.trophy_streak_one_day
+        } else {
+            &mut self.trophy_streak_zero
+        };
+
+        if let Some(ref mut tex) = streak_tex {
+            let _ = tex.set_alpha_mod(255);
+            let _ = tex.set_color_mod(255, 255, 255);
+            let dest = Rect::new(t_streak_x, t_streak_y, trophy_size, trophy_size);
+            self.canvas.copy(tex, None, dest).ok();
+        }
+        self.draw_bitmap_text("DAILY STREAK", t_streak_x + 28, top_shelf_y + 15, 1, Color::RGB(255, 200, 0));
+
+        // Bottom Shelf: Run Trophies
+        let bottom_trophy_y = bottom_shelf_y - 128;
+        let t1_x = cabinet_panel.x() + 24;
+        let t2_x = cabinet_panel.x() + 171;
+        let t3_x = cabinet_panel.x() + 318;
+
+        // Trophy 1: NO HINTS
+        let unlocked_hints = has_last_match && hints_used == 0;
+        if unlocked_hints {
+            if let Some(ref mut tex) = self.trophy_no_hint {
+                let _ = tex.set_alpha_mod(255);
+                let _ = tex.set_color_mod(255, 255, 255);
+                let dest = Rect::new(t1_x, bottom_trophy_y, trophy_size, trophy_size);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+        } else {
+            if let Some(ref mut tex) = self.trophy_streak_zero {
+                let _ = tex.set_alpha_mod(255);
+                let _ = tex.set_color_mod(255, 255, 255);
+                let dest = Rect::new(t1_x, bottom_trophy_y, trophy_size, trophy_size);
+                self.canvas.copy(tex, None, dest).ok();
             }
         }
+        let t1_color = if unlocked_hints { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
+        self.draw_bitmap_text("NO HINTS", t1_x + 40, bottom_shelf_y + 15, 1, t1_color);
+
+        // Trophy 2: NO SHUFFLES
+        let unlocked_shuffles = has_last_match && shuffles_used == 0;
+        if unlocked_shuffles {
+            if let Some(ref mut tex) = self.trophy_no_shuffle {
+                let _ = tex.set_alpha_mod(255);
+                let _ = tex.set_color_mod(255, 255, 255);
+                let dest = Rect::new(t2_x, bottom_trophy_y, trophy_size, trophy_size);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+        } else {
+            if let Some(ref mut tex) = self.trophy_streak_zero {
+                let _ = tex.set_alpha_mod(255);
+                let _ = tex.set_color_mod(255, 255, 255);
+                let dest = Rect::new(t2_x, bottom_trophy_y, trophy_size, trophy_size);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+        }
+        let t2_color = if unlocked_shuffles { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
+        self.draw_bitmap_text("NO SHUFFLE", t2_x + 34, bottom_shelf_y + 15, 1, t2_color);
+
+        // Trophy 3: NO UNDOS
+        let unlocked_undos = has_last_match && undos_used == 0;
+        if unlocked_undos {
+            if let Some(ref mut tex) = self.trophy_no_undo {
+                let _ = tex.set_alpha_mod(255);
+                let _ = tex.set_color_mod(255, 255, 255);
+                let dest = Rect::new(t3_x, bottom_trophy_y, trophy_size, trophy_size);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+        } else {
+            if let Some(ref mut tex) = self.trophy_streak_zero {
+                let _ = tex.set_alpha_mod(255);
+                let _ = tex.set_color_mod(255, 255, 255);
+                let dest = Rect::new(t3_x, bottom_trophy_y, trophy_size, trophy_size);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+        }
+        let t3_color = if unlocked_undos { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
+        self.draw_bitmap_text("NO UNDO", t3_x + 43, bottom_shelf_y + 15, 1, t3_color);
 
         // Back button
         let btn_w: u32 = 180;
         let btn_h: u32 = 40;
         let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
-        let btn_y = dialog.y() + dialog_h as i32 - 55;
-        self.draw_labeled_button(btn_x, btn_y, btn_w, btn_h, Color::RGB(100, 100, 100), "BACK");
+        let btn_y = dialog.y() + dialog_h as i32 - 50;
+        self.draw_labeled_button(btn_x, btn_y, btn_w, btn_h, Color::RGB(80, 80, 95), "BACK");
+    }
+
+    /// Renders a beautiful daily play streak achievement popup.
+    pub fn render_daily_streak_popup(&mut self, streak: u32) {
+        self.draw_overlay_backdrop();
+
+        let dialog = self.draw_dialog_box(380, 240);
+
+        // Neon cyan title
+        let title = "DAILY ACHIEVEMENT";
+        let title_w = title.len() as i32 * 6 * 2;
+        self.draw_bitmap_text(
+            title,
+            dialog.x() + (dialog.width() as i32 - title_w) / 2,
+            dialog.y() + 25,
+            2,
+            Color::RGB(0, 255, 200),
+        );
+
+        // Subtitle
+        let subtitle = "CONSECUTIVE PLAY STREAK";
+        let sub_w = subtitle.len() as i32 * 6 * 1;
+        self.draw_bitmap_text(
+            subtitle,
+            dialog.x() + (dialog.width() as i32 - sub_w) / 2,
+            dialog.y() + 75,
+            1,
+            Color::RGB(180, 180, 220),
+        );
+
+        // Day count
+        let day_text = format!("DAY {}", streak);
+        let text_w = day_text.len() as i32 * 6 * 4;
+        let tx = dialog.x() + (dialog.width() as i32 - text_w) / 2;
+        self.draw_bitmap_text(
+            &day_text,
+            tx,
+            dialog.y() + 115,
+            4,
+            Color::RGB(255, 215, 0), // Gold
+        );
+
+        // Button
+        let btn_w: u32 = 180;
+        let btn_h: u32 = 40;
+        let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
+        let btn_y = dialog.y() + 180;
+        self.draw_labeled_button(btn_x, btn_y, btn_w, btn_h, Color::RGB(0, 150, 150), "AWESOME");
     }
 
     /// Renders the no-moves notification with options to shuffle or start a new game.

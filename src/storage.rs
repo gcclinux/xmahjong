@@ -67,6 +67,9 @@ pub struct LeaderboardEntry {
     pub difficulty: String,
     /// Date of completion in ISO 8601 format.
     pub date: String,
+    /// Number of consecutive days played when score was achieved.
+    #[serde(default)]
+    pub consecutive_days: u32,
 }
 
 impl LeaderboardEntry {
@@ -74,6 +77,27 @@ impl LeaderboardEntry {
     pub fn is_valid_name(name: &str) -> bool {
         let len = name.chars().count();
         (1..=20).contains(&len)
+    }
+
+    /// Dynamically calculates achievements based on the entry's stats.
+    pub fn get_achievements(&self) -> Vec<String> {
+        let mut achs = Vec::new();
+        if self.hints_used == 0 {
+            achs.push("NO-HNT".to_string());
+        }
+        if self.shuffles_used == 0 {
+            achs.push("NO-SHF".to_string());
+        }
+        if self.undos_used == 0 {
+            achs.push("NO-UND".to_string());
+        }
+        if self.time_seconds > 0 && self.time_seconds < 180 {
+            achs.push("SPEEDY".to_string());
+        }
+        if self.consecutive_days > 1 {
+            achs.push(format!("STRK:{}", self.consecutive_days));
+        }
+        achs
     }
 }
 
@@ -123,21 +147,15 @@ impl Leaderboard {
         }
     }
 
-    /// Returns true if the given score qualifies for the top 10.
-    /// Qualifies if fewer than 10 entries exist, or score is higher than the lowest entry.
-    pub fn qualifies(&self, score: u32) -> bool {
-        if self.entries.len() < 10 {
-            return true;
-        }
-        // entries are sorted descending, so the lowest is last
-        self.entries.last().map_or(true, |lowest| score > lowest.score)
+    /// Returns true if the given score qualifies for the achievement board (always true now).
+    pub fn qualifies(&self, _score: u32) -> bool {
+        true
     }
 
-    /// Inserts a new entry, maintaining descending sort order and capping at 10 entries.
+    /// Inserts a new entry, replacing any previous entry to only store the last match.
     pub fn insert(&mut self, entry: LeaderboardEntry) {
+        self.entries.clear();
         self.entries.push(entry);
-        self.entries.sort_by(|a, b| b.score.cmp(&a.score));
-        self.entries.truncate(10);
     }
 }
 
@@ -194,12 +212,20 @@ impl Settings {
 pub struct ShuffleState {
     /// The last date (ISO 8601 YYYY-MM-DD) the user launched the game and received a daily bonus.
     pub last_bonus_date: String,
+    /// Days since unix epoch of the last launch.
+    #[serde(default)]
+    pub last_launch_epoch_days: u64,
+    /// Number of consecutive days launched.
+    #[serde(default)]
+    pub consecutive_days: u32,
 }
 
 impl Default for ShuffleState {
     fn default() -> Self {
         Self {
             last_bonus_date: String::new(),
+            last_launch_epoch_days: 0,
+            consecutive_days: 0,
         }
     }
 }
@@ -356,7 +382,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn insert_maintains_sorted_order() {
+    fn insert_only_stores_the_last_entry() {
         let mut lb = Leaderboard::default();
         lb.insert(LeaderboardEntry {
             name: "Alice".to_string(),
@@ -367,7 +393,11 @@ mod tests {
             undos_used: 0,
             difficulty: "easy".to_string(),
             date: "2024-01-01".to_string(),
+            consecutive_days: 0,
         });
+        assert_eq!(lb.entries.len(), 1);
+        assert_eq!(lb.entries[0].name, "Alice");
+
         lb.insert(LeaderboardEntry {
             name: "Bob".to_string(),
             score: 800,
@@ -377,74 +407,31 @@ mod tests {
             undos_used: 0,
             difficulty: "easy".to_string(),
             date: "2024-01-02".to_string(),
+            consecutive_days: 0,
         });
+
+        assert_eq!(lb.entries.len(), 1);
+        assert_eq!(lb.entries[0].name, "Bob");
+        assert_eq!(lb.entries[0].score, 800);
+    }
+
+    #[test]
+    fn qualifies_always_returns_true() {
+        let mut lb = Leaderboard::default();
+        assert!(lb.qualifies(0));
+        assert!(lb.qualifies(1000));
         lb.insert(LeaderboardEntry {
-            name: "Carol".to_string(),
-            score: 650,
-            time_seconds: 250,
+            name: "P".to_string(),
+            score: 500,
+            time_seconds: 100,
             hints_used: 0,
             shuffles_used: 0,
             undos_used: 0,
             difficulty: "easy".to_string(),
-            date: "2024-01-03".to_string(),
+            date: "2024-01-01".to_string(),
+            consecutive_days: 0,
         });
-
-        assert_eq!(lb.entries[0].score, 800);
-        assert_eq!(lb.entries[1].score, 650);
-        assert_eq!(lb.entries[2].score, 500);
-    }
-
-    #[test]
-    fn insert_caps_at_10_entries() {
-        let mut lb = Leaderboard::default();
-        for i in 0..15 {
-            lb.insert(LeaderboardEntry {
-                name: format!("Player{}", i),
-                score: i * 100,
-                time_seconds: 100,
-                hints_used: 0,
-                shuffles_used: 0,
-                undos_used: 0,
-                difficulty: "easy".to_string(),
-                date: "2024-01-01".to_string(),
-            });
-        }
-
-        assert_eq!(lb.entries.len(), 10);
-        // The top 10 should be scores 1400, 1300, ..., 500
-        assert_eq!(lb.entries[0].score, 1400);
-        assert_eq!(lb.entries[9].score, 500);
-    }
-
-    #[test]
-    fn qualifies_correctly_checks_threshold() {
-        let mut lb = Leaderboard::default();
-
-        // Empty leaderboard: any score qualifies
-        assert!(lb.qualifies(0));
-        assert!(lb.qualifies(100));
-
-        // Fill with 10 entries, lowest score = 100
-        for i in 1..=10 {
-            lb.insert(LeaderboardEntry {
-                name: format!("P{}", i),
-                score: i * 100,
-                time_seconds: 100,
-                hints_used: 0,
-                shuffles_used: 0,
-                undos_used: 0,
-                difficulty: "easy".to_string(),
-                date: "2024-01-01".to_string(),
-            });
-        }
-
-        assert_eq!(lb.entries.len(), 10);
-        // Score higher than lowest (100) qualifies
-        assert!(lb.qualifies(150));
-        // Score equal to lowest does NOT qualify (must be strictly greater)
-        assert!(!lb.qualifies(100));
-        // Score lower than lowest does NOT qualify
-        assert!(!lb.qualifies(50));
+        assert!(lb.qualifies(10));
     }
 
     #[test]
@@ -466,54 +453,5 @@ mod tests {
     fn settings_default_mute_is_false() {
         let settings = Settings::default();
         assert!(!settings.muted);
-    }
-
-    #[test]
-    fn qualifies_with_fewer_than_10_entries() {
-        let mut lb = Leaderboard::default();
-        lb.insert(LeaderboardEntry {
-            name: "One".to_string(),
-            score: 900,
-            time_seconds: 100,
-            hints_used: 0,
-            shuffles_used: 0,
-            undos_used: 0,
-            difficulty: "easy".to_string(),
-            date: "2024-01-01".to_string(),
-        });
-
-        // Only 1 entry, so any score qualifies
-        assert!(lb.qualifies(0));
-        assert!(lb.qualifies(1000));
-    }
-
-    #[test]
-    fn insert_entry_with_same_score_keeps_sorted() {
-        let mut lb = Leaderboard::default();
-        lb.insert(LeaderboardEntry {
-            name: "A".to_string(),
-            score: 500,
-            time_seconds: 100,
-            hints_used: 0,
-            shuffles_used: 0,
-            undos_used: 0,
-            difficulty: "easy".to_string(),
-            date: "2024-01-01".to_string(),
-        });
-        lb.insert(LeaderboardEntry {
-            name: "B".to_string(),
-            score: 500,
-            time_seconds: 200,
-            hints_used: 0,
-            shuffles_used: 0,
-            undos_used: 0,
-            difficulty: "easy".to_string(),
-            date: "2024-01-02".to_string(),
-        });
-
-        assert_eq!(lb.entries.len(), 2);
-        // Both should be present with score 500
-        assert_eq!(lb.entries[0].score, 500);
-        assert_eq!(lb.entries[1].score, 500);
     }
 }
