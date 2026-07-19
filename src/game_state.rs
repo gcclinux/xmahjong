@@ -221,6 +221,13 @@ pub enum Animation {
     /// Fade-out animation when a matched pair is removed.
     TileRemoval {
         positions: (usize, usize),
+        face_id: u8,
+        start_time: Instant,
+        duration_ms: u32,
+    },
+    /// Colorful lightning animation converging in the middle.
+    Lightning {
+        positions: (usize, usize),
         start_time: Instant,
         duration_ms: u32,
     },

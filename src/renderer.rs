@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use sdl2::image::{LoadTexture, LoadSurface};
 use sdl2::pixels::Color;
-use sdl2::rect::Rect;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::{Window, WindowContext};
@@ -730,40 +730,74 @@ impl Renderer {
         // Determine if shuffle animation is active (dims/hides tiles during shuffle)
         let shuffle_progress = self.get_shuffle_progress(state, now);
 
-        // Collect tile positions with their indices, sorted by layer (bottom-to-top)
+        // Define a structure to represent a tile to render, allowing us to include removing tiles
+        struct RenderTile<'a> {
+            _idx: usize,
+            pos: &'a TilePosition,
+            face_id: u8,
+            highlight: TileHighlight,
+        }
+
         let layout = state.board.layout;
-        let mut tile_entries: Vec<(usize, &TilePosition)> = layout
-            .positions
-            .iter()
-            .enumerate()
-            .filter(|(idx, _)| state.board.tiles[*idx].is_some())
-            .collect();
+        let mut render_tiles = Vec::new();
+
+        // Collect active tiles
+        for (idx, pos) in layout.positions.iter().enumerate() {
+            if let Some(tile) = state.board.tiles[idx] {
+                let highlight = self.determine_highlight(state, idx, now);
+                render_tiles.push(RenderTile {
+                    _idx: idx,
+                    pos,
+                    face_id: tile.face_id,
+                    highlight,
+                });
+            }
+        }
+
+        // Collect removing tiles from animations
+        for anim in &state.animations {
+            if let Animation::TileRemoval { positions, face_id, start_time, duration_ms } = anim {
+                let elapsed_ms = now.duration_since(*start_time).as_millis() as u32;
+                if elapsed_ms < *duration_ms {
+                    let progress = (elapsed_ms as f32 / *duration_ms as f32).min(1.0);
+                    let alpha = 1.0 - progress;
+
+                    for &pos_idx in &[positions.0, positions.1] {
+                        let pos = &layout.positions[pos_idx];
+                        render_tiles.push(RenderTile {
+                            _idx: pos_idx,
+                            pos,
+                            face_id: *face_id,
+                            highlight: TileHighlight::Removing(alpha),
+                        });
+                    }
+                }
+            }
+        }
 
         // Sort by layer ascending so lower layers are drawn first
-        tile_entries.sort_by_key(|(_, pos)| pos.layer);
+        render_tiles.sort_by_key(|rt| rt.pos.layer);
 
         // Use the same LayoutMetrics as hit_test for consistent positioning
         let (win_w, win_h) = self.window_size();
         let metrics = compute_layout_rect(win_w, win_h);
         let thickness = compute_thickness(&metrics);
 
-        for (idx, pos) in &tile_entries {
-            let tile = state.board.tiles[*idx].unwrap();
-
+        for rt in &render_tiles {
             // Calculate screen rectangle using the same function as hit_test
-            let dest = tile_screen_rect(pos, &metrics);
-
-            // Determine highlight for this tile
-            let highlight = self.determine_highlight(state, *idx, now);
+            let dest = tile_screen_rect(rt.pos, &metrics);
 
             // If shuffle animation is active, skip rendering individual tile effects
             // and instead render with a shuffle visual
             if let Some(progress) = shuffle_progress {
-                self.render_tile_with_shuffle(tile.face_id, dest, pos.layer, progress, thickness, &metrics);
+                self.render_tile_with_shuffle(rt.face_id, dest, rt.pos.layer, progress, thickness, &metrics);
             } else {
-                self.render_tile_3d(tile.face_id, dest, pos.layer, highlight, thickness, &metrics);
+                self.render_tile_3d(rt.face_id, dest, rt.pos.layer, rt.highlight, thickness, &metrics);
             }
         }
+
+        // Render colorful match celebration lightnings
+        self.render_lightnings(state, now);
     }
 
     /// Renders a single tile as a 3D block with side faces, shadow, and top face.
@@ -946,6 +980,7 @@ impl Renderer {
                     positions,
                     start_time,
                     duration_ms,
+                    ..
                 } => {
                     if positions.0 == pos_idx || positions.1 == pos_idx {
                         let elapsed_ms = now.duration_since(*start_time).as_millis() as u32;
@@ -953,6 +988,7 @@ impl Renderer {
                         return TileHighlight::Removing(1.0 - progress);
                     }
                 }
+                Animation::Lightning { .. } => {}
                 Animation::TileMismatch {
                     positions,
                     start_time,
@@ -2319,6 +2355,227 @@ impl Renderer {
         let right_edge_x = face_x.saturating_add(face_width as i32 - 1);
         let right_line = Rect::new(right_edge_x, face_y, 1, thickness);
         self.canvas.fill_rect(right_line).ok();
+    }
+
+    fn draw_thick_line(&mut self, p1: Point, p2: Point, width: i32, color: Color) {
+        let dx = (p2.x - p1.x) as f32;
+        let dy = (p2.y - p1.y) as f32;
+        let length = (dx * dx + dy * dy).sqrt();
+        if length < 0.1 {
+            return;
+        }
+        let nx = -dy / length;
+        let ny = dx / length;
+
+        self.canvas.set_draw_color(color);
+        let half_w = width / 2;
+        for i in -half_w..=half_w {
+            let offset_x = (nx * i as f32).round() as i32;
+            let offset_y = (ny * i as f32).round() as i32;
+            let start = Point::new(p1.x + offset_x, p1.y + offset_y);
+            let end = Point::new(p2.x + offset_x, p2.y + offset_y);
+            let _ = self.canvas.draw_line(start, end);
+        }
+    }
+
+    fn draw_circle(&mut self, center: Point, radius: i32) {
+        if radius <= 0 {
+            return;
+        }
+        let mut x = radius;
+        let mut y = 0;
+        let mut error = 1 - x;
+
+        while x >= y {
+            let pts = [
+                Point::new(center.x + x, center.y + y),
+                Point::new(center.x + y, center.y + x),
+                Point::new(center.x - y, center.y + x),
+                Point::new(center.x - x, center.y + y),
+                Point::new(center.x - x, center.y - y),
+                Point::new(center.x - y, center.y - x),
+                Point::new(center.x + y, center.y - x),
+                Point::new(center.x + x, center.y - y),
+            ];
+            for &pt in &pts {
+                let _ = self.canvas.draw_point(pt);
+            }
+            y += 1;
+            if error < 0 {
+                error += 2 * y + 1;
+            } else {
+                x -= 1;
+                error += 2 * (y - x) + 1;
+            }
+        }
+    }
+
+    fn draw_lightning_bolt(
+        &mut self,
+        start: Point,
+        end: Point,
+        _progress: f32,
+        _seed: u64,
+        glow_color: Color,
+        core_color: Color,
+        width: i32,
+    ) {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        let num_segments = 8;
+        let mut points = Vec::with_capacity(num_segments + 1);
+        points.push(start);
+
+        let dx = (end.x - start.x) as f32;
+        let dy = (end.y - start.y) as f32;
+        let length = (dx * dx + dy * dy).sqrt();
+        if length < 5.0 {
+            return;
+        }
+
+        let nx = -dy / length;
+        let ny = dx / length;
+
+        let max_displacement = (length * 0.15).min(40.0).max(8.0);
+
+        for i in 1..num_segments {
+            let t = i as f32 / num_segments as f32;
+            let base_x = start.x as f32 + dx * t;
+            let base_y = start.y as f32 + dy * t;
+
+            let envelope = 4.0 * t * (1.0 - t);
+
+            let disp = rng.gen_range(-max_displacement..max_displacement) * envelope;
+            let px = (base_x + nx * disp).round() as i32;
+            let py = (base_y + ny * disp).round() as i32;
+            points.push(Point::new(px, py));
+        }
+        points.push(end);
+
+        self.canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+        for i in 0..num_segments {
+            let p_start = points[i];
+            let p_end = points[i + 1];
+
+            self.draw_thick_line(p_start, p_end, width * 3, glow_color);
+            self.draw_thick_line(p_start, p_end, width, core_color);
+        }
+    }
+
+    fn render_lightnings(&mut self, state: &GameState, now: Instant) {
+        let (win_w, win_h) = self.window_size();
+        let metrics = compute_layout_rect(win_w, win_h);
+
+        for anim in &state.animations {
+            if let Animation::Lightning { positions, start_time, duration_ms } = anim {
+                let elapsed_ms = now.duration_since(*start_time).as_millis() as u32;
+                if elapsed_ms >= *duration_ms {
+                    continue;
+                }
+
+                let progress = elapsed_ms as f32 / *duration_ms as f32;
+
+                let pos_a = &state.board.layout.positions[positions.0];
+                let pos_b = &state.board.layout.positions[positions.1];
+                let rect_a = tile_screen_rect(pos_a, &metrics);
+                let rect_b = tile_screen_rect(pos_b, &metrics);
+
+                let start_a = Point::new(
+                    rect_a.x() + rect_a.width() as i32 / 2,
+                    rect_a.y() + rect_a.height() as i32 / 2,
+                );
+                let start_b = Point::new(
+                    rect_b.x() + rect_b.width() as i32 / 2,
+                    rect_b.y() + rect_b.height() as i32 / 2,
+                );
+
+                // Calculate the midpoint between the two matched tiles
+                let midpoint = Point::new(
+                    (start_a.x + start_b.x) / 2,
+                    (start_a.y + start_b.y) / 2,
+                );
+
+                let propagation = (progress / 0.35).min(1.0);
+
+                let target_a = Point::new(
+                    (start_a.x as f32 + (midpoint.x - start_a.x) as f32 * propagation) as i32,
+                    (start_a.y as f32 + (midpoint.y - start_a.y) as f32 * propagation) as i32,
+                );
+                let target_b = Point::new(
+                    (start_b.x as f32 + (midpoint.x - start_b.x) as f32 * propagation) as i32,
+                    (start_b.y as f32 + (midpoint.y - start_b.y) as f32 * propagation) as i32,
+                );
+
+                let alpha_val = if progress > 0.8 {
+                    ((1.0 - (progress - 0.8) / 0.2) * 255.0) as u8
+                } else {
+                    255
+                };
+
+                let color_pairs = [
+                    (Color::RGBA(0, 255, 255, alpha_val), Color::RGBA(220, 255, 255, alpha_val)),
+                    (Color::RGBA(255, 0, 255, alpha_val), Color::RGBA(255, 220, 255, alpha_val)),
+                    (Color::RGBA(255, 215, 0, alpha_val), Color::RGBA(255, 255, 220, alpha_val)),
+                ];
+
+                for (glow, core) in &color_pairs {
+                    self.draw_lightning_bolt(start_a, target_a, progress, 0, *glow, *core, 2);
+                }
+
+                for (glow, core) in &color_pairs {
+                    self.draw_lightning_bolt(start_b, target_b, progress, 0, *glow, *core, 2);
+                }
+
+                if progress >= 0.3 {
+                    let burst_progress = (progress - 0.3) / 0.7;
+                    let max_radius = 45.0; // Slightly smaller burst radius since it's localized
+                    let current_radius = (burst_progress * max_radius) as i32;
+
+                    self.canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+
+                    let ring_alpha = ((1.0 - burst_progress) * alpha_val as f32) as u8;
+
+                    self.canvas.set_draw_color(Color::RGBA(0, 255, 255, ring_alpha / 2));
+                    self.draw_circle(midpoint, current_radius);
+                    self.draw_circle(midpoint, current_radius - 1);
+
+                    self.canvas.set_draw_color(Color::RGBA(255, 0, 255, ring_alpha / 3));
+                    self.draw_circle(midpoint, (current_radius * 4 / 5) as i32);
+
+                    self.canvas.set_draw_color(Color::RGBA(255, 215, 0, ring_alpha / 4));
+                    self.draw_circle(midpoint, (current_radius * 3 / 5) as i32);
+
+                    let num_sparks = 12;
+                    let spark_len = 12.0 * (1.0 - burst_progress);
+                    let inner_r = current_radius as f32;
+                    let outer_r = inner_r + spark_len;
+
+                    for i in 0..num_sparks {
+                        let angle = (i as f32 * 2.0 * std::f32::consts::PI) / num_sparks as f32;
+                        let cos = angle.cos();
+                        let sin = angle.sin();
+
+                        let p1 = Point::new(
+                            (midpoint.x as f32 + inner_r * cos) as i32,
+                            (midpoint.y as f32 + inner_r * sin) as i32,
+                        );
+                        let p2 = Point::new(
+                            (midpoint.x as f32 + outer_r * cos) as i32,
+                            (midpoint.y as f32 + outer_r * sin) as i32,
+                        );
+
+                        let spark_color = match i % 3 {
+                            0 => Color::RGBA(0, 255, 255, ring_alpha),
+                            1 => Color::RGBA(255, 0, 255, ring_alpha),
+                            _ => Color::RGBA(255, 215, 0, ring_alpha),
+                        };
+
+                        self.draw_thick_line(p1, p2, 2, spark_color);
+                    }
+                }
+            }
+        }
     }
 }
 

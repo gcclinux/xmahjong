@@ -1311,8 +1311,21 @@ fn handle_select_tile(
     let result = logic::select_tile(state, pos);
 
     match result {
-        SelectionResult::Matched(_, _) => {
+        SelectionResult::Matched(pos_a, pos_b) => {
             audio.play_match();
+
+            let face_id = state.undo_stack.last().map(|entry| entry.tile_a.face_id).unwrap_or(0);
+            state.animations.push(xmahjong::game_state::Animation::TileRemoval {
+                positions: (pos_a, pos_b),
+                face_id,
+                start_time: Instant::now(),
+                duration_ms: 600,
+            });
+            state.animations.push(xmahjong::game_state::Animation::Lightning {
+                positions: (pos_a, pos_b),
+                start_time: Instant::now(),
+                duration_ms: 600,
+            });
 
             // Check for win condition after a successful match
             // (No-moves detection is deferred until the player requests a Hint)
@@ -1324,8 +1337,13 @@ fn handle_select_tile(
                 return true;
             }
         }
-        SelectionResult::Mismatched(_, _) => {
+        SelectionResult::Mismatched(pos_a, pos_b) => {
             audio.play_error();
+            state.animations.push(xmahjong::game_state::Animation::TileMismatch {
+                positions: (pos_a, pos_b),
+                start_time: Instant::now(),
+                duration_ms: 500,
+            });
         }
         SelectionResult::Selected
         | SelectionResult::Deselected
@@ -1404,6 +1422,14 @@ fn expire_animations(state: &mut GameState) {
     state.animations.retain(|anim| {
         match anim {
             xmahjong::game_state::Animation::TileRemoval {
+                start_time,
+                duration_ms,
+                ..
+            } => {
+                let elapsed = now.duration_since(*start_time).as_millis() as u32;
+                elapsed < *duration_ms
+            }
+            xmahjong::game_state::Animation::Lightning {
                 start_time,
                 duration_ms,
                 ..
