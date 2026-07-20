@@ -1840,9 +1840,9 @@ impl Renderer {
             self.draw_bitmap_text(&format!("{}", entry.undos_used), val_x, stats_panel.y() + 210, 2, Color::RGB(255, 255, 255));
 
             self.draw_bitmap_text("DAILY STREAK:", label_x, stats_panel.y() + 235, 2, Color::RGB(200, 200, 200));
-            self.draw_bitmap_text(&format!("{} DAYS", entry.consecutive_days), val_x, stats_panel.y() + 235, 2, Color::RGB(255, 200, 0));
+            self.draw_bitmap_text(&format!("{} DAYS", current_streak), val_x, stats_panel.y() + 235, 2, Color::RGB(255, 200, 0));
 
-            (entry.hints_used, entry.shuffles_used, entry.undos_used, entry.consecutive_days)
+            (entry.hints_used, entry.shuffles_used, entry.undos_used, current_streak)
         } else {
             let label_x = stats_panel.x() + 20;
             let val_x = stats_panel.x() + 180;
