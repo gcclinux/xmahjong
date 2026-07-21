@@ -1380,11 +1380,20 @@ fn handle_select_tile(
                 state.score.elapsed_seconds = state.timer.elapsed_seconds();
                 state.status = GameStatus::Won;
                 audio.play_victory();
+
+                // Check and award repeatable trophies
+                let mut trophies = xmahjong::storage::TrophyState::load();
+                trophies.check_perfect_combo(state.score.mismatches);
+                let level_elapsed = state.timer.elapsed_seconds();
+                trophies.check_rapid_clear(state.level, level_elapsed);
+                trophies.save();
+
                 return true;
             }
         }
         SelectionResult::Mismatched(pos_a, pos_b) => {
             audio.play_error();
+            state.score.mismatches += 1;
             state.animations.push(xmahjong::game_state::Animation::TileMismatch {
                 positions: (pos_a, pos_b),
                 start_time: Instant::now(),
@@ -1672,6 +1681,7 @@ fn load_saved_game() -> Option<GameState> {
             undos_used: saved.undos_used,
             elapsed_seconds: 0, // Only used at game end
             pairs_matched: saved.pairs_matched,
+            mismatches: 0,
         },
         status: GameStatus::Playing,
         selection: None,

@@ -30,6 +30,7 @@ proptest! {
             undos_used: 0,
             elapsed_seconds,
             pairs_matched,
+            mismatches: 0,
         };
 
         let score = tracker.calculate_score();
@@ -73,6 +74,7 @@ proptest! {
             undos_used: 0,
             elapsed_seconds: 0,
             pairs_matched,
+            mismatches: 0,
         };
 
         let live = tracker.live_score();

@@ -95,6 +95,8 @@ pub struct ScoreTracker {
     pub elapsed_seconds: u32,
     /// Number of pairs matched so far.
     pub pairs_matched: u32,
+    /// Number of mismatched (wrong) tile pair attempts this level.
+    pub mismatches: u32,
 }
 
 impl ScoreTracker {
@@ -106,6 +108,7 @@ impl ScoreTracker {
             undos_used: 0,
             elapsed_seconds: 0,
             pairs_matched: 0,
+            mismatches: 0,
         }
     }
 
@@ -262,6 +265,7 @@ mod tests {
             undos_used: 0,
             elapsed_seconds: 100,
             pairs_matched: 72,
+            mismatches: 0,
         };
         // base: 72*10=720, streak: 72*2=144, penalty: 0, time_bonus: 500-100=400
         // total: 720+144+400 = 1264
@@ -276,6 +280,7 @@ mod tests {
             undos_used: 0,
             elapsed_seconds: 120,
             pairs_matched: 72,
+            mismatches: 0,
         };
         // base: 720, streak: 144, penalty: 2*5+1*10=20, time_bonus: 500-120=380
         // total: 720+144-20+380 = 1224
@@ -290,6 +295,7 @@ mod tests {
             undos_used: 0,
             elapsed_seconds: 9999,
             pairs_matched: 0,
+            mismatches: 0,
         };
         // base: 0, streak: 0, penalty: 100*5+100*10=1500 (saturates to 0), time_bonus: 0
         assert_eq!(tracker.calculate_score(), 0);
@@ -303,6 +309,7 @@ mod tests {
             undos_used: 0,
             elapsed_seconds: 0,
             pairs_matched: 0,
+            mismatches: 0,
         };
         // No pairs matched, no time bonus (elapsed_seconds == 0 means in-game)
         assert_eq!(tracker.calculate_score(), 0);
@@ -316,6 +323,7 @@ mod tests {
             undos_used: 0,
             elapsed_seconds: 0,
             pairs_matched: 5,
+            mismatches: 0,
         };
         // base: 5*10=50, streak: 5*2=10, no time bonus during game
         assert_eq!(tracker.live_score(), 60);

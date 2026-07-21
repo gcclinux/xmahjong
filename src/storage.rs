@@ -159,6 +159,105 @@ impl Leaderboard {
     }
 }
 
+/// Persistent trophy achievement state.
+///
+/// Stored as `trophies.json` in the storage directory.
+/// Tracks cumulative counts for repeatable achievements:
+/// - Perfect Combo: complete a level with zero mismatches (no wrong tile pair selections)
+/// - Rapid Clear: complete a level within the time threshold for its difficulty tier
+///
+/// Rapid Clear thresholds (seconds):
+///   Levels  1-10 (Easy):   120s
+///   Levels 11-20 (Medium): 180s
+///   Levels 21-30 (Hard):   240s
+///   Levels 31-40 (Expert): 300s
+///   Levels 41-50+:         360s
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrophyState {
+    /// Number of times a Perfect Combo was achieved (0 mismatches in a completed level).
+    #[serde(default)]
+    pub perfect_combo_count: u32,
+    /// Number of times a Rapid Clear was achieved (level completed within time threshold).
+    #[serde(default)]
+    pub rapid_clear_count: u32,
+}
+
+impl Default for TrophyState {
+    fn default() -> Self {
+        Self {
+            perfect_combo_count: 0,
+            rapid_clear_count: 0,
+        }
+    }
+}
+
+impl TrophyState {
+    /// Loads the trophy state from disk.
+    /// Returns default state on any read or parse error.
+    pub fn load() -> Self {
+        let path = storage_dir().join("trophies.json");
+        match fs::read_to_string(&path) {
+            Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
+            Err(_) => Self::default(),
+        }
+    }
+
+    /// Saves the trophy state to disk.
+    pub fn save(&self) {
+        let dir = storage_dir();
+        if let Err(e) = fs::create_dir_all(&dir) {
+            eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
+            return;
+        }
+        let path = dir.join("trophies.json");
+        match serde_json::to_string_pretty(self) {
+            Ok(json) => {
+                if let Err(e) = fs::write(&path, json) {
+                    eprintln!("xmahjong: failed to write trophy state to {:?}: {}", path, e);
+                }
+            }
+            Err(e) => {
+                eprintln!("xmahjong: failed to serialize trophy state: {}", e);
+            }
+        }
+    }
+
+    /// Returns the rapid clear time threshold in seconds for a given level.
+    /// Lower levels have tighter thresholds (easier boards = less time allowed).
+    pub fn rapid_clear_threshold(level: u32) -> u32 {
+        match level {
+            1..=10 => 120,   // Easy boards: 2 minutes
+            11..=20 => 180,  // Medium boards: 3 minutes
+            21..=30 => 240,  // Hard boards: 4 minutes
+            31..=40 => 300,  // Expert boards: 5 minutes
+            _ => 360,        // Master boards: 6 minutes
+        }
+    }
+
+    /// Checks if a Perfect Combo was achieved (no mismatches in the level).
+    /// If so, increments the counter and returns true.
+    pub fn check_perfect_combo(&mut self, mismatches: u32) -> bool {
+        if mismatches == 0 {
+            self.perfect_combo_count += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Checks if a Rapid Clear was achieved (level completed within threshold).
+    /// If so, increments the counter and returns true.
+    pub fn check_rapid_clear(&mut self, level: u32, elapsed_seconds: u32) -> bool {
+        let threshold = Self::rapid_clear_threshold(level);
+        if elapsed_seconds > 0 && elapsed_seconds <= threshold {
+            self.rapid_clear_count += 1;
+            true
+        } else {
+            false
+        }
+    }
+}
+
 /// Game settings that persist across sessions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {

@@ -14,7 +14,7 @@ use sdl2::video::{Window, WindowContext};
 
 use crate::board::TilePosition;
 use crate::game_state::{Animation, GameState};
-use crate::storage::{Leaderboard, ShuffleState};
+use crate::storage::{Leaderboard, ShuffleState, TrophyState};
 
 /// Number of distinct tile face images per style.
 const TILE_FACE_COUNT: usize = 50;
@@ -410,6 +410,8 @@ pub struct Renderer {
     pub trophy_no_shuffle: Option<Texture<'static>>,
     pub trophy_no_undo: Option<Texture<'static>>,
     pub trophy_no_hint: Option<Texture<'static>>,
+    /// Empty trophy/coin used as base for numbered repeatable achievements.
+    pub trophy_empty: Option<Texture<'static>>,
     // Streak trophies
     pub trophy_streak_zero: Option<Texture<'static>>,
     pub trophy_streak_one_day: Option<Texture<'static>>,
@@ -547,6 +549,10 @@ impl Renderer {
             Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
             Err(_) => None,
         };
+        let trophy_empty = match texture_creator.load_texture(&format!("{}/trophies/empty.png", base)) {
+            Ok(texture) => Some(unsafe { std::mem::transmute(texture) }),
+            Err(_) => None,
+        };
 
         // Load Streak Trophies
         let trophy_streak_zero = match texture_creator.load_texture(&format!("{}/trophies/zero.png", base)) {
@@ -603,6 +609,7 @@ impl Renderer {
             trophy_no_shuffle,
             trophy_no_undo,
             trophy_no_hint,
+            trophy_empty,
             trophy_streak_zero,
             trophy_streak_one_day,
             trophy_streak_two_days,
@@ -1738,16 +1745,17 @@ impl Renderer {
         }
     }
 
-    /// Renders the achievements view showing the last match stats and earned trophies.
+    /// Renders the achievements view with 3D wooden plank shelves and numbered trophies.
     pub fn render_leaderboard(&mut self) {
         self.draw_overlay_backdrop();
 
         let leaderboard = Leaderboard::load();
         let shuffle_state = ShuffleState::load();
+        let trophy_state = TrophyState::load();
         let current_streak = shuffle_state.consecutive_days;
         
         let dialog_w: u32 = 900;
-        let dialog_h: u32 = 580;
+        let dialog_h: u32 = 620;
         let dialog = self.draw_dialog_box(dialog_w, dialog_h);
 
         // Futuristic neon turquoise title (centered, scale 4)
@@ -1770,7 +1778,7 @@ impl Renderer {
         ).ok();
 
         // Left Panel: Last Match Stats
-        let stats_panel = Rect::new(dialog.x() + 30, dialog.y() + 85, 340, 410);
+        let stats_panel = Rect::new(dialog.x() + 30, dialog.y() + 85, 340, 450);
         self.canvas.set_draw_color(Color::RGB(50, 80, 120));
         self.canvas.draw_rect(stats_panel).ok();
         let stats_panel_inner = Rect::new(stats_panel.x() + 2, stats_panel.y() + 2, stats_panel.width() - 4, stats_panel.height() - 4);
@@ -1778,25 +1786,41 @@ impl Renderer {
         self.canvas.fill_rect(stats_panel_inner).ok();
 
         // Right Panel: Trophy Cabinet
-        let cabinet_panel = Rect::new(dialog.x() + 400, dialog.y() + 85, 470, 410);
+        let cabinet_panel = Rect::new(dialog.x() + 400, dialog.y() + 85, 470, 450);
         self.canvas.set_draw_color(Color::RGB(50, 80, 120));
         self.canvas.draw_rect(cabinet_panel).ok();
         let cabinet_panel_inner = Rect::new(cabinet_panel.x() + 2, cabinet_panel.y() + 2, cabinet_panel.width() - 4, cabinet_panel.height() - 4);
         self.canvas.set_draw_color(Color::RGB(25, 30, 45));
         self.canvas.fill_rect(cabinet_panel_inner).ok();
 
-        // Cabinet Shelves
+        // Cabinet Shelves with 3D plank effect
+        let shelf_w: u32 = cabinet_panel.width() - 40;
+        let shelf_h: u32 = 8;
+        let shelf_x = cabinet_panel.x() + 20;
         let top_shelf_y = cabinet_panel.y() + 185;
         let bottom_shelf_y = cabinet_panel.y() + 365;
 
-        // Draw top shelf line
-        self.canvas.set_draw_color(Color::RGB(205, 127, 50)); // Wooden brown
-        self.canvas.fill_rect(Rect::new(cabinet_panel.x() + 80, top_shelf_y, cabinet_panel.width() - 160, 6)).ok();
+        // 3D plank: top shelf
+        self.canvas.set_draw_color(Color::RGB(180, 120, 60));
+        self.canvas.fill_rect(Rect::new(shelf_x, top_shelf_y, shelf_w, shelf_h)).ok();
+        self.canvas.set_draw_color(Color::RGB(140, 85, 40));
+        self.canvas.fill_rect(Rect::new(shelf_x, top_shelf_y + shelf_h as i32, shelf_w, 8)).ok();
+        self.canvas.set_draw_color(Color::RGB(220, 160, 90));
+        self.canvas.draw_line(
+            sdl2::rect::Point::new(shelf_x, top_shelf_y),
+            sdl2::rect::Point::new(shelf_x + shelf_w as i32 - 1, top_shelf_y)
+        ).ok();
 
-        // Draw bottom shelf line
-        self.canvas.fill_rect(Rect::new(cabinet_panel.x() + 15, bottom_shelf_y, cabinet_panel.width() - 30, 8)).ok();
-
-        let trophy_size = 128;
+        // 3D plank: bottom shelf
+        self.canvas.set_draw_color(Color::RGB(180, 120, 60));
+        self.canvas.fill_rect(Rect::new(shelf_x, bottom_shelf_y, shelf_w, shelf_h)).ok();
+        self.canvas.set_draw_color(Color::RGB(140, 85, 40));
+        self.canvas.fill_rect(Rect::new(shelf_x, bottom_shelf_y + shelf_h as i32, shelf_w, 8)).ok();
+        self.canvas.set_draw_color(Color::RGB(220, 160, 90));
+        self.canvas.draw_line(
+            sdl2::rect::Point::new(shelf_x, bottom_shelf_y),
+            sdl2::rect::Point::new(shelf_x + shelf_w as i32 - 1, bottom_shelf_y)
+        ).ok();
 
         let has_last_match = !leaderboard.entries.is_empty();
         
@@ -1842,6 +1866,15 @@ impl Renderer {
             self.draw_bitmap_text("DAILY STREAK:", label_x, stats_panel.y() + 235, 2, Color::RGB(200, 200, 200));
             self.draw_bitmap_text(&format!("{} DAYS", current_streak), val_x, stats_panel.y() + 235, 2, Color::RGB(255, 200, 0));
 
+            // Trophy counters section
+            self.draw_bitmap_text("TROPHY COUNTERS", label_x, stats_panel.y() + 275, 2, Color::RGB(0, 180, 255));
+            self.draw_bitmap_text("PERFECT COMBO:", label_x, stats_panel.y() + 305, 2, Color::RGB(200, 200, 200));
+            let pc_color = if trophy_state.perfect_combo_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
+            self.draw_bitmap_text(&format!("{}", trophy_state.perfect_combo_count), val_x + 30, stats_panel.y() + 305, 2, pc_color);
+            self.draw_bitmap_text("RAPID CLEAR:", label_x, stats_panel.y() + 330, 2, Color::RGB(200, 200, 200));
+            let rc_color = if trophy_state.rapid_clear_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
+            self.draw_bitmap_text(&format!("{}", trophy_state.rapid_clear_count), val_x + 30, stats_panel.y() + 330, 2, rc_color);
+
             (entry.hints_used, entry.shuffles_used, entry.undos_used, current_streak)
         } else {
             let label_x = stats_panel.x() + 20;
@@ -1854,15 +1887,69 @@ impl Renderer {
             
             self.draw_bitmap_text("DAILY STREAK:", label_x, stats_panel.y() + 235, 2, Color::RGB(200, 200, 200));
             self.draw_bitmap_text(&format!("{} DAYS", current_streak), val_x, stats_panel.y() + 235, 2, Color::RGB(255, 200, 0));
+
+            // Trophy counters section
+            self.draw_bitmap_text("TROPHY COUNTERS", label_x, stats_panel.y() + 275, 2, Color::RGB(0, 180, 255));
+            self.draw_bitmap_text("PERFECT COMBO:", label_x, stats_panel.y() + 305, 2, Color::RGB(200, 200, 200));
+            let pc_color = if trophy_state.perfect_combo_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
+            self.draw_bitmap_text(&format!("{}", trophy_state.perfect_combo_count), val_x + 30, stats_panel.y() + 305, 2, pc_color);
+            self.draw_bitmap_text("RAPID CLEAR:", label_x, stats_panel.y() + 330, 2, Color::RGB(200, 200, 200));
+            let rc_color = if trophy_state.rapid_clear_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
+            self.draw_bitmap_text(&format!("{}", trophy_state.rapid_clear_count), val_x + 30, stats_panel.y() + 330, 2, rc_color);
+
             (1, 1, 1, current_streak) // default locked values
         };
 
         // Render Trophies in the Cabinet
         self.draw_bitmap_text("TROPHY SHELF", cabinet_panel.x() + 20, cabinet_panel.y() + 20, 2, Color::RGB(0, 180, 255));
 
-        // Top Shelf: Daily Play Streak Milestone Trophy (centered above Bottom Shelf middle trophy)
-        let t_streak_x = cabinet_panel.x() + 171;
-        let t_streak_y = top_shelf_y - 128;
+        // Top Shelf: Perfect Combo + Daily Streak + Rapid Clear
+        let trophy_size = 100;
+        let top_trophy_y = top_shelf_y - trophy_size as i32;
+        let t_combo_x = cabinet_panel.x() + 40;
+        let t_streak_x = cabinet_panel.x() + (cabinet_panel.width() as i32 - trophy_size as i32) / 2;
+        let t_rapid_x = cabinet_panel.x() + cabinet_panel.width() as i32 - 40 - trophy_size as i32;
+
+        // Perfect Combo trophy (uses empty.png with number overlay)
+        if trophy_state.perfect_combo_count > 0 {
+            if let Some(ref mut tex) = self.trophy_empty {
+                let _ = tex.set_alpha_mod(255);
+                let _ = tex.set_color_mod(255, 255, 255);
+                let dest = Rect::new(t_combo_x, top_trophy_y, trophy_size as u32, trophy_size as u32);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+            let count_str = format!("{}", trophy_state.perfect_combo_count);
+            let num_scale: u32 = 5;
+            let count_w = count_str.len() as i32 * 6 * num_scale as i32;
+            let count_h = 7 * num_scale as i32;
+            let num_x = t_combo_x + (trophy_size - count_w) / 2 + 4;
+            let num_y = top_trophy_y + (trophy_size - count_h) / 2 + 2;
+            // Bold outline (draw at all surrounding offsets for thickness)
+            let outline_color = Color::RGB(40, 30, 0);
+            for dx in -2..=2i32 {
+                for dy in -1..=3i32 {
+                    if dx != 0 || dy != 0 {
+                        self.draw_bitmap_text(&count_str, num_x + dx, num_y + dy, num_scale, outline_color);
+                    }
+                }
+            }
+            // Mid shadow layer
+            self.draw_bitmap_text(&count_str, num_x + 1, num_y + 1, num_scale, Color::RGB(100, 80, 0));
+            // Main number
+            self.draw_bitmap_text(&count_str, num_x, num_y, num_scale, Color::RGB(255, 255, 255));
+        } else {
+            if let Some(ref mut tex) = self.trophy_streak_zero {
+                let _ = tex.set_alpha_mod(100);
+                let _ = tex.set_color_mod(80, 80, 80);
+                let dest = Rect::new(t_combo_x, top_trophy_y, trophy_size as u32, trophy_size as u32);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+        }
+        let combo_color = if trophy_state.perfect_combo_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
+        self.draw_bitmap_text("PERFECT", t_combo_x + 22, top_shelf_y + 18, 1, combo_color);
+
+        // Daily Play Streak Milestone Trophy (centered)
+        let t_streak_y = top_shelf_y - trophy_size as i32;
 
         let streak_tex = if streak_days >= 365 {
             &mut self.trophy_streak_one_year
@@ -1891,16 +1978,54 @@ impl Renderer {
         if let Some(ref mut tex) = streak_tex {
             let _ = tex.set_alpha_mod(255);
             let _ = tex.set_color_mod(255, 255, 255);
-            let dest = Rect::new(t_streak_x, t_streak_y, trophy_size, trophy_size);
+            let dest = Rect::new(t_streak_x, t_streak_y, trophy_size as u32, trophy_size as u32);
             self.canvas.copy(tex, None, dest).ok();
         }
-        self.draw_bitmap_text("DAILY STREAK", t_streak_x + 28, top_shelf_y + 15, 1, Color::RGB(255, 200, 0));
+        self.draw_bitmap_text("STREAK", t_streak_x + 28, top_shelf_y + 18, 1, Color::RGB(255, 200, 0));
+
+        // Rapid Clear trophy (uses empty.png with number overlay)
+        if trophy_state.rapid_clear_count > 0 {
+            if let Some(ref mut tex) = self.trophy_empty {
+                let _ = tex.set_alpha_mod(255);
+                let _ = tex.set_color_mod(255, 255, 255);
+                let dest = Rect::new(t_rapid_x, top_trophy_y, trophy_size as u32, trophy_size as u32);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+            let count_str = format!("{}", trophy_state.rapid_clear_count);
+            let num_scale: u32 = 5;
+            let count_w = count_str.len() as i32 * 6 * num_scale as i32;
+            let count_h = 7 * num_scale as i32;
+            let num_x = t_rapid_x + (trophy_size - count_w) / 2 + 4;
+            let num_y = top_trophy_y + (trophy_size - count_h) / 2 + 2;
+            // Bold outline (draw at all surrounding offsets for thickness)
+            let outline_color = Color::RGB(40, 30, 0);
+            for dx in -2..=2i32 {
+                for dy in -1..=3i32 {
+                    if dx != 0 || dy != 0 {
+                        self.draw_bitmap_text(&count_str, num_x + dx, num_y + dy, num_scale, outline_color);
+                    }
+                }
+            }
+            // Mid shadow layer
+            self.draw_bitmap_text(&count_str, num_x + 1, num_y + 1, num_scale, Color::RGB(100, 80, 0));
+            // Main number
+            self.draw_bitmap_text(&count_str, num_x, num_y, num_scale, Color::RGB(255, 255, 255));
+        } else {
+            if let Some(ref mut tex) = self.trophy_streak_zero {
+                let _ = tex.set_alpha_mod(100);
+                let _ = tex.set_color_mod(80, 80, 80);
+                let dest = Rect::new(t_rapid_x, top_trophy_y, trophy_size as u32, trophy_size as u32);
+                self.canvas.copy(tex, None, dest).ok();
+            }
+        }
+        let rapid_color = if trophy_state.rapid_clear_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
+        self.draw_bitmap_text("RAPID", t_rapid_x + 28, top_shelf_y + 18, 1, rapid_color);
 
         // Bottom Shelf: Run Trophies
-        let bottom_trophy_y = bottom_shelf_y - 128;
-        let t1_x = cabinet_panel.x() + 24;
-        let t2_x = cabinet_panel.x() + 171;
-        let t3_x = cabinet_panel.x() + 318;
+        let bottom_trophy_y = bottom_shelf_y - trophy_size as i32;
+        let t1_x = cabinet_panel.x() + 40;
+        let t2_x = cabinet_panel.x() + (cabinet_panel.width() as i32 - trophy_size as i32) / 2;
+        let t3_x = cabinet_panel.x() + cabinet_panel.width() as i32 - 40 - trophy_size as i32;
 
         // Trophy 1: NO HINTS
         let unlocked_hints = has_last_match && hints_used == 0;
@@ -1908,19 +2033,19 @@ impl Renderer {
             if let Some(ref mut tex) = self.trophy_no_hint {
                 let _ = tex.set_alpha_mod(255);
                 let _ = tex.set_color_mod(255, 255, 255);
-                let dest = Rect::new(t1_x, bottom_trophy_y, trophy_size, trophy_size);
+                let dest = Rect::new(t1_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
         } else {
             if let Some(ref mut tex) = self.trophy_streak_zero {
-                let _ = tex.set_alpha_mod(255);
-                let _ = tex.set_color_mod(255, 255, 255);
-                let dest = Rect::new(t1_x, bottom_trophy_y, trophy_size, trophy_size);
+                let _ = tex.set_alpha_mod(100);
+                let _ = tex.set_color_mod(80, 80, 80);
+                let dest = Rect::new(t1_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
         }
         let t1_color = if unlocked_hints { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
-        self.draw_bitmap_text("NO HINTS", t1_x + 40, bottom_shelf_y + 15, 1, t1_color);
+        self.draw_bitmap_text("NO HINTS", t1_x + 20, bottom_shelf_y + 18, 1, t1_color);
 
         // Trophy 2: NO SHUFFLES
         let unlocked_shuffles = has_last_match && shuffles_used == 0;
@@ -1928,19 +2053,19 @@ impl Renderer {
             if let Some(ref mut tex) = self.trophy_no_shuffle {
                 let _ = tex.set_alpha_mod(255);
                 let _ = tex.set_color_mod(255, 255, 255);
-                let dest = Rect::new(t2_x, bottom_trophy_y, trophy_size, trophy_size);
+                let dest = Rect::new(t2_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
         } else {
             if let Some(ref mut tex) = self.trophy_streak_zero {
-                let _ = tex.set_alpha_mod(255);
-                let _ = tex.set_color_mod(255, 255, 255);
-                let dest = Rect::new(t2_x, bottom_trophy_y, trophy_size, trophy_size);
+                let _ = tex.set_alpha_mod(100);
+                let _ = tex.set_color_mod(80, 80, 80);
+                let dest = Rect::new(t2_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
         }
         let t2_color = if unlocked_shuffles { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
-        self.draw_bitmap_text("NO SHUFFLE", t2_x + 34, bottom_shelf_y + 15, 1, t2_color);
+        self.draw_bitmap_text("NO SHUFFLE", t2_x + 14, bottom_shelf_y + 18, 1, t2_color);
 
         // Trophy 3: NO UNDOS
         let unlocked_undos = has_last_match && undos_used == 0;
@@ -1948,19 +2073,19 @@ impl Renderer {
             if let Some(ref mut tex) = self.trophy_no_undo {
                 let _ = tex.set_alpha_mod(255);
                 let _ = tex.set_color_mod(255, 255, 255);
-                let dest = Rect::new(t3_x, bottom_trophy_y, trophy_size, trophy_size);
+                let dest = Rect::new(t3_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
         } else {
             if let Some(ref mut tex) = self.trophy_streak_zero {
-                let _ = tex.set_alpha_mod(255);
-                let _ = tex.set_color_mod(255, 255, 255);
-                let dest = Rect::new(t3_x, bottom_trophy_y, trophy_size, trophy_size);
+                let _ = tex.set_alpha_mod(100);
+                let _ = tex.set_color_mod(80, 80, 80);
+                let dest = Rect::new(t3_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
         }
         let t3_color = if unlocked_undos { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
-        self.draw_bitmap_text("NO UNDO", t3_x + 43, bottom_shelf_y + 15, 1, t3_color);
+        self.draw_bitmap_text("NO UNDO", t3_x + 22, bottom_shelf_y + 18, 1, t3_color);
 
         // Back button
         let btn_w: u32 = 180;
