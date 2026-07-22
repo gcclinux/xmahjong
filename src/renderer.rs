@@ -1824,7 +1824,7 @@ impl Renderer {
 
         let has_last_match = !leaderboard.entries.is_empty();
         
-        let (hints_used, shuffles_used, undos_used, streak_days) = if has_last_match {
+        let (_hints_used, _shuffles_used, _undos_used, streak_days) = if has_last_match {
             let entry = &leaderboard.entries[0];
             let label_x = stats_panel.x() + 20;
             let val_x = stats_panel.x() + 180;
@@ -1854,26 +1854,40 @@ impl Renderer {
             self.draw_bitmap_text("MODE:", label_x, stats_panel.y() + 130, 2, Color::RGB(200, 200, 200));
             self.draw_bitmap_text(diff_label, val_x, stats_panel.y() + 130, 2, diff_color);
 
-            self.draw_bitmap_text("HINTS:", label_x, stats_panel.y() + 160, 2, Color::RGB(200, 200, 200));
-            self.draw_bitmap_text(&format!("{}", entry.hints_used), val_x, stats_panel.y() + 160, 2, Color::RGB(255, 255, 255));
+            self.draw_bitmap_text("HINTS:", label_x, stats_panel.y() + 155, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{}", entry.hints_used), val_x, stats_panel.y() + 155, 2, Color::RGB(255, 255, 255));
 
-            self.draw_bitmap_text("SHUFFLES:", label_x, stats_panel.y() + 185, 2, Color::RGB(200, 200, 200));
-            self.draw_bitmap_text(&format!("{}", entry.shuffles_used), val_x, stats_panel.y() + 185, 2, Color::RGB(255, 255, 255));
+            self.draw_bitmap_text("SHUFFLES:", label_x, stats_panel.y() + 180, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{}", entry.shuffles_used), val_x, stats_panel.y() + 180, 2, Color::RGB(255, 255, 255));
 
-            self.draw_bitmap_text("UNDOS:", label_x, stats_panel.y() + 210, 2, Color::RGB(200, 200, 200));
-            self.draw_bitmap_text(&format!("{}", entry.undos_used), val_x, stats_panel.y() + 210, 2, Color::RGB(255, 255, 255));
-
-            self.draw_bitmap_text("DAILY STREAK:", label_x, stats_panel.y() + 235, 2, Color::RGB(200, 200, 200));
-            self.draw_bitmap_text(&format!("{} DAYS", current_streak), val_x, stats_panel.y() + 235, 2, Color::RGB(255, 200, 0));
+            self.draw_bitmap_text("UNDOS:", label_x, stats_panel.y() + 205, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{}", entry.undos_used), val_x, stats_panel.y() + 205, 2, Color::RGB(255, 255, 255));
 
             // Trophy counters section
-            self.draw_bitmap_text("TROPHY COUNTERS", label_x, stats_panel.y() + 275, 2, Color::RGB(0, 180, 255));
-            self.draw_bitmap_text("PERFECT COMBO:", label_x, stats_panel.y() + 305, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text("TROPHY COUNTERS", label_x, stats_panel.y() + 245, 2, Color::RGB(0, 180, 255));
+
+            self.draw_bitmap_text("STREAK:", label_x, stats_panel.y() + 275, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{} DAYS", current_streak), val_x, stats_panel.y() + 275, 2, Color::RGB(255, 200, 0));
+
+            self.draw_bitmap_text("PERFECT:", label_x, stats_panel.y() + 300, 2, Color::RGB(200, 200, 200));
             let pc_color = if trophy_state.perfect_combo_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
-            self.draw_bitmap_text(&format!("{}", trophy_state.perfect_combo_count), val_x + 30, stats_panel.y() + 305, 2, pc_color);
-            self.draw_bitmap_text("RAPID CLEAR:", label_x, stats_panel.y() + 330, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{}", trophy_state.perfect_combo_count), val_x, stats_panel.y() + 300, 2, pc_color);
+
+            self.draw_bitmap_text("RAPID:", label_x, stats_panel.y() + 325, 2, Color::RGB(200, 200, 200));
             let rc_color = if trophy_state.rapid_clear_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
-            self.draw_bitmap_text(&format!("{}", trophy_state.rapid_clear_count), val_x + 30, stats_panel.y() + 330, 2, rc_color);
+            self.draw_bitmap_text(&format!("{}", trophy_state.rapid_clear_count), val_x, stats_panel.y() + 325, 2, rc_color);
+
+            self.draw_bitmap_text("NO HINTS:", label_x, stats_panel.y() + 350, 2, Color::RGB(200, 200, 200));
+            let nh_color = if trophy_state.no_hints_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
+            self.draw_bitmap_text(&format!("{}", trophy_state.no_hints_count), val_x, stats_panel.y() + 350, 2, nh_color);
+
+            self.draw_bitmap_text("NO SHUFFLES:", label_x, stats_panel.y() + 375, 2, Color::RGB(200, 200, 200));
+            let ns_color = if trophy_state.no_shuffles_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
+            self.draw_bitmap_text(&format!("{}", trophy_state.no_shuffles_count), val_x, stats_panel.y() + 375, 2, ns_color);
+
+            self.draw_bitmap_text("NO UNDOS:", label_x, stats_panel.y() + 400, 2, Color::RGB(200, 200, 200));
+            let nu_color = if trophy_state.no_undos_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
+            self.draw_bitmap_text(&format!("{}", trophy_state.no_undos_count), val_x, stats_panel.y() + 400, 2, nu_color);
 
             (entry.hints_used, entry.shuffles_used, entry.undos_used, current_streak)
         } else {
@@ -1885,17 +1899,26 @@ impl Renderer {
             self.draw_bitmap_text("WIN A GAME", stats_panel.x() + 20, stats_panel.y() + 120, 2, Color::RGB(255, 255, 255));
             self.draw_bitmap_text("TO EARN TROPHIES!", stats_panel.x() + 20, stats_panel.y() + 145, 2, Color::RGB(255, 255, 255));
             
-            self.draw_bitmap_text("DAILY STREAK:", label_x, stats_panel.y() + 235, 2, Color::RGB(200, 200, 200));
-            self.draw_bitmap_text(&format!("{} DAYS", current_streak), val_x, stats_panel.y() + 235, 2, Color::RGB(255, 200, 0));
-
             // Trophy counters section
-            self.draw_bitmap_text("TROPHY COUNTERS", label_x, stats_panel.y() + 275, 2, Color::RGB(0, 180, 255));
-            self.draw_bitmap_text("PERFECT COMBO:", label_x, stats_panel.y() + 305, 2, Color::RGB(200, 200, 200));
-            let pc_color = if trophy_state.perfect_combo_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
-            self.draw_bitmap_text(&format!("{}", trophy_state.perfect_combo_count), val_x + 30, stats_panel.y() + 305, 2, pc_color);
-            self.draw_bitmap_text("RAPID CLEAR:", label_x, stats_panel.y() + 330, 2, Color::RGB(200, 200, 200));
-            let rc_color = if trophy_state.rapid_clear_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 100, 100) };
-            self.draw_bitmap_text(&format!("{}", trophy_state.rapid_clear_count), val_x + 30, stats_panel.y() + 330, 2, rc_color);
+            self.draw_bitmap_text("TROPHY COUNTERS", label_x, stats_panel.y() + 245, 2, Color::RGB(0, 180, 255));
+
+            self.draw_bitmap_text("STREAK:", label_x, stats_panel.y() + 275, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text(&format!("{} DAYS", current_streak), val_x, stats_panel.y() + 275, 2, Color::RGB(255, 200, 0));
+
+            self.draw_bitmap_text("PERFECT:", label_x, stats_panel.y() + 300, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text("0", val_x, stats_panel.y() + 300, 2, Color::RGB(100, 100, 100));
+
+            self.draw_bitmap_text("RAPID:", label_x, stats_panel.y() + 325, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text("0", val_x, stats_panel.y() + 325, 2, Color::RGB(100, 100, 100));
+
+            self.draw_bitmap_text("NO HINTS:", label_x, stats_panel.y() + 350, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text("0", val_x, stats_panel.y() + 350, 2, Color::RGB(100, 100, 100));
+
+            self.draw_bitmap_text("NO SHUFFLES:", label_x, stats_panel.y() + 375, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text("0", val_x, stats_panel.y() + 375, 2, Color::RGB(100, 100, 100));
+
+            self.draw_bitmap_text("NO UNDOS:", label_x, stats_panel.y() + 400, 2, Color::RGB(200, 200, 200));
+            self.draw_bitmap_text("0", val_x, stats_panel.y() + 400, 2, Color::RGB(100, 100, 100));
 
             (1, 1, 1, current_streak) // default locked values
         };
@@ -2027,15 +2050,31 @@ impl Renderer {
         let t2_x = cabinet_panel.x() + (cabinet_panel.width() as i32 - trophy_size as i32) / 2;
         let t3_x = cabinet_panel.x() + cabinet_panel.width() as i32 - 40 - trophy_size as i32;
 
-        // Trophy 1: NO HINTS
-        let unlocked_hints = has_last_match && hints_used == 0;
-        if unlocked_hints {
-            if let Some(ref mut tex) = self.trophy_no_hint {
+        // Trophy 1: NO HINTS (cumulative counter)
+        let nh_count = trophy_state.no_hints_count;
+        if nh_count > 0 {
+            if let Some(ref mut tex) = self.trophy_empty {
                 let _ = tex.set_alpha_mod(255);
                 let _ = tex.set_color_mod(255, 255, 255);
                 let dest = Rect::new(t1_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
+            let count_str = format!("{}", nh_count);
+            let num_scale: u32 = 5;
+            let count_w = count_str.len() as i32 * 6 * num_scale as i32;
+            let count_h = 7 * num_scale as i32;
+            let num_x = t1_x + (trophy_size - count_w) / 2 + 4;
+            let num_y = bottom_trophy_y + (trophy_size - count_h) / 2 + 2;
+            let outline_color = Color::RGB(40, 30, 0);
+            for dx in -2..=2i32 {
+                for dy in -1..=3i32 {
+                    if dx != 0 || dy != 0 {
+                        self.draw_bitmap_text(&count_str, num_x + dx, num_y + dy, num_scale, outline_color);
+                    }
+                }
+            }
+            self.draw_bitmap_text(&count_str, num_x + 1, num_y + 1, num_scale, Color::RGB(100, 80, 0));
+            self.draw_bitmap_text(&count_str, num_x, num_y, num_scale, Color::RGB(255, 255, 255));
         } else {
             if let Some(ref mut tex) = self.trophy_streak_zero {
                 let _ = tex.set_alpha_mod(100);
@@ -2044,18 +2083,34 @@ impl Renderer {
                 self.canvas.copy(tex, None, dest).ok();
             }
         }
-        let t1_color = if unlocked_hints { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
+        let t1_color = if nh_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
         self.draw_bitmap_text("NO HINTS", t1_x + 20, bottom_shelf_y + 18, 1, t1_color);
 
-        // Trophy 2: NO SHUFFLES
-        let unlocked_shuffles = has_last_match && shuffles_used == 0;
-        if unlocked_shuffles {
-            if let Some(ref mut tex) = self.trophy_no_shuffle {
+        // Trophy 2: NO SHUFFLES (cumulative counter)
+        let ns_count = trophy_state.no_shuffles_count;
+        if ns_count > 0 {
+            if let Some(ref mut tex) = self.trophy_empty {
                 let _ = tex.set_alpha_mod(255);
                 let _ = tex.set_color_mod(255, 255, 255);
                 let dest = Rect::new(t2_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
+            let count_str = format!("{}", ns_count);
+            let num_scale: u32 = 5;
+            let count_w = count_str.len() as i32 * 6 * num_scale as i32;
+            let count_h = 7 * num_scale as i32;
+            let num_x = t2_x + (trophy_size - count_w) / 2 + 4;
+            let num_y = bottom_trophy_y + (trophy_size - count_h) / 2 + 2;
+            let outline_color = Color::RGB(40, 30, 0);
+            for dx in -2..=2i32 {
+                for dy in -1..=3i32 {
+                    if dx != 0 || dy != 0 {
+                        self.draw_bitmap_text(&count_str, num_x + dx, num_y + dy, num_scale, outline_color);
+                    }
+                }
+            }
+            self.draw_bitmap_text(&count_str, num_x + 1, num_y + 1, num_scale, Color::RGB(100, 80, 0));
+            self.draw_bitmap_text(&count_str, num_x, num_y, num_scale, Color::RGB(255, 255, 255));
         } else {
             if let Some(ref mut tex) = self.trophy_streak_zero {
                 let _ = tex.set_alpha_mod(100);
@@ -2064,18 +2119,34 @@ impl Renderer {
                 self.canvas.copy(tex, None, dest).ok();
             }
         }
-        let t2_color = if unlocked_shuffles { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
+        let t2_color = if ns_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
         self.draw_bitmap_text("NO SHUFFLE", t2_x + 14, bottom_shelf_y + 18, 1, t2_color);
 
-        // Trophy 3: NO UNDOS
-        let unlocked_undos = has_last_match && undos_used == 0;
-        if unlocked_undos {
-            if let Some(ref mut tex) = self.trophy_no_undo {
+        // Trophy 3: NO UNDOS (cumulative counter)
+        let nu_count = trophy_state.no_undos_count;
+        if nu_count > 0 {
+            if let Some(ref mut tex) = self.trophy_empty {
                 let _ = tex.set_alpha_mod(255);
                 let _ = tex.set_color_mod(255, 255, 255);
                 let dest = Rect::new(t3_x, bottom_trophy_y, trophy_size as u32, trophy_size as u32);
                 self.canvas.copy(tex, None, dest).ok();
             }
+            let count_str = format!("{}", nu_count);
+            let num_scale: u32 = 5;
+            let count_w = count_str.len() as i32 * 6 * num_scale as i32;
+            let count_h = 7 * num_scale as i32;
+            let num_x = t3_x + (trophy_size - count_w) / 2 + 4;
+            let num_y = bottom_trophy_y + (trophy_size - count_h) / 2 + 2;
+            let outline_color = Color::RGB(40, 30, 0);
+            for dx in -2..=2i32 {
+                for dy in -1..=3i32 {
+                    if dx != 0 || dy != 0 {
+                        self.draw_bitmap_text(&count_str, num_x + dx, num_y + dy, num_scale, outline_color);
+                    }
+                }
+            }
+            self.draw_bitmap_text(&count_str, num_x + 1, num_y + 1, num_scale, Color::RGB(100, 80, 0));
+            self.draw_bitmap_text(&count_str, num_x, num_y, num_scale, Color::RGB(255, 255, 255));
         } else {
             if let Some(ref mut tex) = self.trophy_streak_zero {
                 let _ = tex.set_alpha_mod(100);
@@ -2084,7 +2155,7 @@ impl Renderer {
                 self.canvas.copy(tex, None, dest).ok();
             }
         }
-        let t3_color = if unlocked_undos { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
+        let t3_color = if nu_count > 0 { Color::RGB(255, 215, 0) } else { Color::RGB(100, 110, 130) };
         self.draw_bitmap_text("NO UNDO", t3_x + 22, bottom_shelf_y + 18, 1, t3_color);
 
         // Back button

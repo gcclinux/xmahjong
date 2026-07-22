@@ -50,7 +50,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            target/package/*.deb
-            target/package/*.rpm
-            target/package/*.AppImage
+            target/package/*${{ steps.version.outputs.version }}*.deb
+            target/package/*${{ steps.version.outputs.version }}*.rpm
+            target/package/*-${{ steps.version.outputs.version }}-*.AppImage
           fail_on_unmatched_files: true

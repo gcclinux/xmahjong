@@ -98,6 +98,6 @@ jobs:
             All packages require SDL2, SDL2_image, SDL2_mixer, and SDL2_ttf.
             The AppImage bundles these libraries automatically.
           files: |
-            target/package/*.zip
-            target/package/*.msi
+            target/package/*-${{ steps.version.outputs.version }}-*.zip
+            target/package/*-${{ steps.version.outputs.version }}-*.msi
           fail_on_unmatched_files: true

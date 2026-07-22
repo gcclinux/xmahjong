@@ -47,6 +47,6 @@ jobs:
         with:
           tag_name: "v${{ steps.version.outputs.version }}"
           files: |
-            target/package/*.dmg
-            target/package/*.zip
+            target/package/*-${{ steps.version.outputs.version }}-*.dmg
+            target/package/*-${{ steps.version.outputs.version }}-*.zip
           fail_on_unmatched_files: true

@@ -1067,7 +1067,7 @@ fn main() {
                             // Handle clicks on Achievements dialog (Back button)
                             let (win_w, win_h) = renderer.window_size();
                             let dialog_w: u32 = 900;
-                            let dialog_h: u32 = 580;
+                            let dialog_h: u32 = 620;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
 
@@ -1386,6 +1386,9 @@ fn handle_select_tile(
                 trophies.check_perfect_combo(state.score.mismatches);
                 let level_elapsed = state.timer.elapsed_seconds();
                 trophies.check_rapid_clear(state.level, level_elapsed);
+                trophies.check_no_hints(state.score.hints_used);
+                trophies.check_no_shuffles(state.score.shuffles_used);
+                trophies.check_no_undos(state.score.undos_used);
                 trophies.save();
 
                 return true;

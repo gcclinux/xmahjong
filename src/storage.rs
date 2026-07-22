@@ -180,6 +180,15 @@ pub struct TrophyState {
     /// Number of times a Rapid Clear was achieved (level completed within time threshold).
     #[serde(default)]
     pub rapid_clear_count: u32,
+    /// Number of levels cleared without using any hints.
+    #[serde(default)]
+    pub no_hints_count: u32,
+    /// Number of levels cleared without using any shuffles.
+    #[serde(default)]
+    pub no_shuffles_count: u32,
+    /// Number of levels cleared without using any undos.
+    #[serde(default)]
+    pub no_undos_count: u32,
 }
 
 impl Default for TrophyState {
@@ -187,6 +196,9 @@ impl Default for TrophyState {
         Self {
             perfect_combo_count: 0,
             rapid_clear_count: 0,
+            no_hints_count: 0,
+            no_shuffles_count: 0,
+            no_undos_count: 0,
         }
     }
 }
@@ -251,6 +263,36 @@ impl TrophyState {
         let threshold = Self::rapid_clear_threshold(level);
         if elapsed_seconds > 0 && elapsed_seconds <= threshold {
             self.rapid_clear_count += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Checks if a level was cleared without hints. Increments counter if so.
+    pub fn check_no_hints(&mut self, hints_used: u32) -> bool {
+        if hints_used == 0 {
+            self.no_hints_count += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Checks if a level was cleared without shuffles. Increments counter if so.
+    pub fn check_no_shuffles(&mut self, shuffles_used: u32) -> bool {
+        if shuffles_used == 0 {
+            self.no_shuffles_count += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Checks if a level was cleared without undos. Increments counter if so.
+    pub fn check_no_undos(&mut self, undos_used: u32) -> bool {
+        if undos_used == 0 {
+            self.no_undos_count += 1;
             true
         } else {
             false
