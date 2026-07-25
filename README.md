@@ -256,6 +256,26 @@ All game data is stored as JSON files in a platform-specific directory:
 - Quit Confirmation (render_quit_confirmation) — ✅ Has Yes/No buttons
 - Name Entry (render_name_entry) — ✅ Text input
 
+### Graphify
+
+- Manually Update .gitignore
+```
+add graphify-out/cache
+```
+
+#### Windows
+- PS> winget install astral-sh.uv
+- PS> uv tool install graphifyy
+- PS> graphify install --platform antigravity / kiro
+- PS> graphify hook install
+
+#### Linux
+- $ sudo snap install astral-uv --classic
+- $ uv tool install graphifyy
+- $ graphify install --platform antigravity / kiro
+- $ graphify hook install
+
+
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE).

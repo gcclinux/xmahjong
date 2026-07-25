@@ -39,4 +39,3 @@ sdl2-dev/
 # Added by ggshield
 .cache_ggshield
 .local
-graphify-out/cache
