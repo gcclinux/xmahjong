@@ -7,12 +7,33 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-/// Returns the storage directory path.
+/// Sanitizes a username string so it can be safely used as a directory name.
+pub fn sanitize_user_name(user_name: &str) -> String {
+    let trimmed = user_name.trim();
+    if trimmed.is_empty() {
+        return "default".to_string();
+    }
+    let sanitized: String = trimmed
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect();
+    if sanitized.is_empty() {
+        "default".to_string()
+    } else {
+        sanitized
+    }
+}
+
+/// Returns the base storage directory path without user subfolder.
 /// Checks `$SNAP_USER_DATA` first (Snap packages), then uses the platform-appropriate location:
 /// - macOS:   `~/Library/Application Support/xmahjong/`
 /// - Windows: `%APPDATA%\xmahjong\`
 /// - Linux:   `~/.local/share/xmahjong/`
-fn storage_dir() -> PathBuf {
+pub fn base_storage_dir() -> PathBuf {
     if let Ok(snap_dir) = std::env::var("SNAP_USER_DATA") {
         PathBuf::from(snap_dir)
     } else {
@@ -20,10 +41,14 @@ fn storage_dir() -> PathBuf {
     }
 }
 
-/// Platform-appropriate storage directory.
-/// - macOS:   `~/Library/Application Support/xmahjong/`
-/// - Windows: `%APPDATA%\xmahjong\`  (e.g. C:\Users\<user>\AppData\Roaming\xmahjong)
-/// - Linux:   `~/.local/share/xmahjong/`
+/// Returns the storage directory path for a specific username.
+/// E.g. `~/.local/share/xmahjong/<user_name>/`
+pub fn storage_dir_for_user(user_name: &str) -> PathBuf {
+    let safe_name = sanitize_user_name(user_name);
+    base_storage_dir().join(safe_name)
+}
+
+/// Platform-appropriate storage directory fallback.
 fn dirs_fallback() -> PathBuf {
     if cfg!(target_os = "macos") {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -32,7 +57,6 @@ fn dirs_fallback() -> PathBuf {
             .join("Application Support")
             .join("xmahjong")
     } else if cfg!(target_os = "windows") {
-        // APPDATA is always set on Windows; fall back to current dir if somehow missing
         let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
         PathBuf::from(appdata).join("xmahjong")
     } else {
@@ -116,20 +140,20 @@ impl Default for Leaderboard {
 }
 
 impl Leaderboard {
-    /// Loads the leaderboard from disk.
+    /// Loads the leaderboard from disk for a specific user.
     /// Returns a default (empty) leaderboard on any read or parse error.
-    pub fn load() -> Self {
-        let path = storage_dir().join("leaderboard.json");
+    pub fn load(user_name: &str) -> Self {
+        let path = storage_dir_for_user(user_name).join("leaderboard.json");
         match fs::read_to_string(&path) {
             Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
             Err(_) => Self::default(),
         }
     }
 
-    /// Saves the leaderboard to disk.
+    /// Saves the leaderboard to disk for a specific user.
     /// Creates directories as needed. Logs errors to stderr but does not crash.
-    pub fn save(&self) {
-        let dir = storage_dir();
+    pub fn save(&self, user_name: &str) {
+        let dir = storage_dir_for_user(user_name);
         if let Err(e) = fs::create_dir_all(&dir) {
             eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
             return;
@@ -204,19 +228,19 @@ impl Default for TrophyState {
 }
 
 impl TrophyState {
-    /// Loads the trophy state from disk.
+    /// Loads the trophy state from disk for a specific user.
     /// Returns default state on any read or parse error.
-    pub fn load() -> Self {
-        let path = storage_dir().join("trophies.json");
+    pub fn load(user_name: &str) -> Self {
+        let path = storage_dir_for_user(user_name).join("trophies.json");
         match fs::read_to_string(&path) {
             Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
             Err(_) => Self::default(),
         }
     }
 
-    /// Saves the trophy state to disk.
-    pub fn save(&self) {
-        let dir = storage_dir();
+    /// Saves the trophy state to disk for a specific user.
+    pub fn save(&self, user_name: &str) {
+        let dir = storage_dir_for_user(user_name);
         if let Err(e) = fs::create_dir_all(&dir) {
             eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
             return;
@@ -313,20 +337,20 @@ impl Default for Settings {
 }
 
 impl Settings {
-    /// Loads settings from disk.
+    /// Loads settings from disk for a specific user.
     /// Returns default settings on any read or parse error.
-    pub fn load() -> Self {
-        let path = storage_dir().join("settings.json");
+    pub fn load(user_name: &str) -> Self {
+        let path = storage_dir_for_user(user_name).join("settings.json");
         match fs::read_to_string(&path) {
             Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
             Err(_) => Self::default(),
         }
     }
 
-    /// Saves settings to disk.
+    /// Saves settings to disk for a specific user.
     /// Creates directories as needed. Logs errors to stderr but does not crash.
-    pub fn save(&self) {
-        let dir = storage_dir();
+    pub fn save(&self, user_name: &str) {
+        let dir = storage_dir_for_user(user_name);
         if let Err(e) = fs::create_dir_all(&dir) {
             eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
             return;
@@ -372,19 +396,19 @@ impl Default for ShuffleState {
 }
 
 impl ShuffleState {
-    /// Loads the shuffle state from disk.
+    /// Loads the shuffle state from disk for a specific user.
     /// Returns default state (no bonus date) on any read or parse error.
-    pub fn load() -> Self {
-        let path = storage_dir().join("shuffles.json");
+    pub fn load(user_name: &str) -> Self {
+        let path = storage_dir_for_user(user_name).join("shuffles.json");
         match fs::read_to_string(&path) {
             Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
             Err(_) => Self::default(),
         }
     }
 
-    /// Saves the shuffle state to disk.
-    pub fn save(&self) {
-        let dir = storage_dir();
+    /// Saves the shuffle state to disk for a specific user.
+    pub fn save(&self, user_name: &str) {
+        let dir = storage_dir_for_user(user_name);
         if let Err(e) = fs::create_dir_all(&dir) {
             eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
             return;
@@ -472,10 +496,10 @@ fn default_difficulty_str() -> String {
 }
 
 impl SavedGame {
-    /// Loads a saved game from disk. Returns None if no save exists, is corrupt,
+    /// Loads a saved game from disk for a specific user. Returns None if no save exists, is corrupt,
     /// or contains a level outside the valid range (1-100).
-    pub fn load() -> Option<Self> {
-        let path = storage_dir().join("savegame.json");
+    pub fn load(user_name: &str) -> Option<Self> {
+        let path = storage_dir_for_user(user_name).join("savegame.json");
         match fs::read_to_string(&path) {
             Ok(contents) => {
                 let saved: Option<Self> = serde_json::from_str(&contents).ok();
@@ -485,9 +509,9 @@ impl SavedGame {
         }
     }
 
-    /// Saves the game state to disk.
-    pub fn save(&self) {
-        let dir = storage_dir();
+    /// Saves the game state to disk for a specific user.
+    pub fn save(&self, user_name: &str) {
+        let dir = storage_dir_for_user(user_name);
         if let Err(e) = fs::create_dir_all(&dir) {
             eprintln!("xmahjong: failed to create storage directory {:?}: {}", dir, e);
             return;
@@ -505,15 +529,15 @@ impl SavedGame {
         }
     }
 
-    /// Deletes the saved game file (e.g., after successfully loading it).
-    pub fn delete() {
-        let path = storage_dir().join("savegame.json");
+    /// Deletes the saved game file for a specific user (e.g., after successfully loading it).
+    pub fn delete(user_name: &str) {
+        let path = storage_dir_for_user(user_name).join("savegame.json");
         let _ = fs::remove_file(&path);
     }
 
-    /// Returns true if a saved game file exists on disk.
-    pub fn exists() -> bool {
-        let path = storage_dir().join("savegame.json");
+    /// Returns true if a saved game file exists on disk for a specific user.
+    pub fn exists(user_name: &str) -> bool {
+        let path = storage_dir_for_user(user_name).join("savegame.json");
         path.exists()
     }
 }
@@ -594,5 +618,19 @@ mod tests {
     fn settings_default_mute_is_false() {
         let settings = Settings::default();
         assert!(!settings.muted);
+    }
+
+    #[test]
+    fn test_sanitize_user_name() {
+        assert_eq!(sanitize_user_name("  "), "default");
+        assert_eq!(sanitize_user_name("Alice"), "Alice");
+        assert_eq!(sanitize_user_name("Bob/Smith"), "Bob_Smith");
+        assert_eq!(sanitize_user_name("User:1*"), "User_1_");
+    }
+
+    #[test]
+    fn test_storage_dir_for_user() {
+        let dir = storage_dir_for_user("Alice");
+        assert!(dir.ends_with("Alice"));
     }
 }

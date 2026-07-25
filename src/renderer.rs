@@ -1549,7 +1549,7 @@ impl Renderer {
     pub fn render_menu(&mut self, selected: usize, difficulty: &str) {
         self.draw_overlay_backdrop();
 
-        let dialog = self.draw_dialog_box(300, 540);
+        let dialog = self.draw_dialog_box(300, 590);
 
         // Title
         self.draw_bitmap_text(
@@ -1564,7 +1564,7 @@ impl Renderer {
         let btn_h: u32 = 40;
         let btn_x = dialog.x() + ((dialog.width() - btn_w) / 2) as i32;
         let start_y = dialog.y() + 60;
-        let spacing: i32 = 50;
+        let spacing: i32 = 48;
 
         let difficulty_label = format!("MODE: {}", difficulty);
 
@@ -1577,6 +1577,7 @@ impl Renderer {
             (Color::RGB(50, 100, 180), "ACHIEVEMENTS"),
             (Color::RGB(0, 130, 130), &difficulty_label),
             (Color::RGB(80, 120, 180), "ABOUT"),
+            (Color::RGB(160, 100, 180), "SWITCH USER"),
             (Color::RGB(200, 130, 50), "SAVE + QUIT"),
         ];
 
@@ -1598,7 +1599,7 @@ impl Renderer {
         self.draw_bitmap_text(
             "ESC RESUME  CTRL+S SAVE",
             dialog.x() + 20,
-            dialog.y() + 515,
+            dialog.y() + 562,
             1,
             Color::RGB(120, 120, 140),
         );
@@ -1746,12 +1747,12 @@ impl Renderer {
     }
 
     /// Renders the achievements view with 3D wooden plank shelves and numbered trophies.
-    pub fn render_leaderboard(&mut self) {
+    pub fn render_leaderboard(&mut self, user_name: &str) {
         self.draw_overlay_backdrop();
 
-        let leaderboard = Leaderboard::load();
-        let shuffle_state = ShuffleState::load();
-        let trophy_state = TrophyState::load();
+        let leaderboard = Leaderboard::load(user_name);
+        let shuffle_state = ShuffleState::load(user_name);
+        let trophy_state = TrophyState::load(user_name);
         let current_streak = shuffle_state.consecutive_days;
         
         let dialog_w: u32 = 900;
@@ -2416,45 +2417,66 @@ impl Renderer {
 
         let dialog = self.draw_dialog_box(400, 280);
 
-        // "HIGH SCORE!" title (gold, large)
-        self.draw_bitmap_text(
-            "HIGH SCORE!",
-            dialog.x() + 112,
-            dialog.y() + 18,
-            3,
-            Color::RGB(255, 215, 0),
-        );
+        let is_startup = score == 0 && time_seconds == 0;
 
-        // Score display
-        let score_text = format!("SCORE  {}", score);
-        self.draw_bitmap_text(
-            &score_text,
-            dialog.x() + 130,
-            dialog.y() + 58,
-            2,
-            Color::RGB(255, 200, 50),
-        );
+        if is_startup {
+            // Startup Username Entry
+            self.draw_bitmap_text(
+                "WELCOME TO XMAHJONG",
+                dialog.x() + 45,
+                dialog.y() + 24,
+                3,
+                Color::RGB(255, 215, 0),
+            );
 
-        // Time display
-        let minutes = time_seconds / 60;
-        let seconds = time_seconds % 60;
-        let time_text = format!("TIME  {:02}:{:02}", minutes, seconds);
-        self.draw_bitmap_text(
-            &time_text,
-            dialog.x() + 130,
-            dialog.y() + 82,
-            2,
-            Color::RGB(100, 200, 100),
-        );
+            self.draw_bitmap_text(
+                "ENTER USERNAME",
+                dialog.x() + 90,
+                dialog.y() + 75,
+                2,
+                Color::RGB(200, 200, 220),
+            );
+        } else {
+            // "HIGH SCORE!" title (gold, large)
+            self.draw_bitmap_text(
+                "HIGH SCORE!",
+                dialog.x() + 112,
+                dialog.y() + 18,
+                3,
+                Color::RGB(255, 215, 0),
+            );
 
-        // "ENTER YOUR NAME" label
-        self.draw_bitmap_text(
-            "ENTER YOUR NAME",
-            dialog.x() + 40,
-            dialog.y() + 118,
-            2,
-            Color::RGB(200, 200, 220),
-        );
+            // Score display
+            let score_text = format!("SCORE  {}", score);
+            self.draw_bitmap_text(
+                &score_text,
+                dialog.x() + 130,
+                dialog.y() + 58,
+                2,
+                Color::RGB(255, 200, 50),
+            );
+
+            // Time display
+            let minutes = time_seconds / 60;
+            let seconds = time_seconds % 60;
+            let time_text = format!("TIME  {:02}:{:02}", minutes, seconds);
+            self.draw_bitmap_text(
+                &time_text,
+                dialog.x() + 130,
+                dialog.y() + 82,
+                2,
+                Color::RGB(100, 200, 100),
+            );
+
+            // "ENTER YOUR NAME" label
+            self.draw_bitmap_text(
+                "ENTER YOUR NAME",
+                dialog.x() + 40,
+                dialog.y() + 118,
+                2,
+                Color::RGB(200, 200, 220),
+            );
+        }
 
         // Text input field background
         let input_x = dialog.x() + 40;
@@ -2492,9 +2514,15 @@ impl Renderer {
         self.canvas.fill_rect(cursor_rect).ok();
 
         // Instructions
+        let instructions = if is_startup {
+            "PRESS ENTER TO START GAME"
+        } else {
+            "ENTER TO SUBMIT  ESC TO SKIP"
+        };
+        let instr_x = if is_startup { dialog.x() + 50 } else { dialog.x() + 52 };
         self.draw_bitmap_text(
-            "ENTER TO SUBMIT  ESC TO SKIP",
-            dialog.x() + 52,
+            instructions,
+            instr_x,
             dialog.y() + 198,
             1,
             Color::RGB(140, 140, 160),

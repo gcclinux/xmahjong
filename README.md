@@ -228,15 +228,17 @@ xattr -cr /Applications/xMahjong.app
 
 ## Data Storage
 
-All game data is stored as JSON files in a platform-specific directory:
+`xmahjong` supports multi-user profiles. When starting the game, players are prompted to enter their username. All settings, levels, and progress details are stored within the user-specific directory:
 
 | Platform | Path |
 |----------|------|
-| **Linux** | `~/.local/share/xmahjong/` |
-| **macOS** | `~/Library/Application Support/xmahjong/` |
-| **Windows** | `%APPDATA%\xmahjong\` (e.g. `C:\Users\<user>\AppData\Roaming\xmahjong\`) |
+| **Linux** | `~/.local/share/xmahjong/<user_name>/` |
+| **macOS** | `~/Library/Application Support/xmahjong/<user_name>/` |
+| **Windows** | `%APPDATA%\xmahjong\<user_name>\` (e.g. `C:\Users\<user>\AppData\Roaming\xmahjong\<user_name>\`) |
 
-### Files
+Entering a different username at game startup creates and manages a separate set of user stats and saves, enabling multiple players to share the game. You can also switch users at any time via the **SWITCH USER** option in the Pause menu (ESC). Level completions and scores are automatically saved to `<user_name>`'s profile without prompting for username input after every level.
+
+### Files (per username folder)
 
 | File | Description |
 |------|-------------|
@@ -244,17 +246,18 @@ All game data is stored as JSON files in a platform-specific directory:
 | `settings.json` | Persistent settings (muted state) |
 | `savegame.json` | In-progress game state for resuming later (deleted after loading) |
 | `shuffles.json` | Shuffle state: tracks last daily bonus date for the +1 daily shuffle reward |
+| `trophies.json` | Persistent trophy achievement progress |
 
 ### Menu
 
-- Pause menu (render_menu) — ✅ Has keyboard nav
+- Pause menu (render_menu) — ✅ Has keyboard nav & Switch User option
 - Victory (render_victory) — ✅ Has keyboard nav
 - Leaderboard (render_leaderboard) — ✅ Has Enter/Escape support
 - Shortcuts (render_shortcuts) — ✅ Has Enter/Escape support
 - No Moves (render_no_moves) — ✅ Has Shuffle + New Game buttons
 - Game Over (render_game_over) — ✅ Has Save Score + New Game buttons
 - Quit Confirmation (render_quit_confirmation) — ✅ Has Yes/No buttons
-- Name Entry (render_name_entry) — ✅ Text input
+- Name Entry (render_name_entry) — ✅ Startup username prompt & text input
 
 ### Graphify
 

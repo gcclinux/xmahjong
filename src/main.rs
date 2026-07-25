@@ -177,81 +177,42 @@ fn main() {
     // 3. Create AudioManager (handles init failure gracefully)
     let mut audio = AudioManager::new();
 
-    // 4. Load Settings (mute state)
-    let mut settings = Settings::load();
-    audio.set_mute(settings.muted);
+    // 4. Active username and settings
+    let mut current_user_name = String::new();
+    let mut settings = Settings::default();
 
     // 5. Create InputHandler
     let input_handler = InputHandler::new();
 
     // 6. Generate initial board and create GameState
     let mut game_state = if dev_mode.enabled {
-        // Dev mode: skip save loading, jump directly to specified level
+        current_user_name = "dev".to_string();
+        settings = Settings::load(&current_user_name);
+        audio.set_mute(settings.muted);
         create_new_game_state_for_level(dev_mode.start_level, Difficulty::Easy)
-    } else if SavedGame::exists() {
-        match load_saved_game() {
-            Some(state) => {
-                SavedGame::delete();
-                state
-            }
-            None => create_new_game_state(),
-        }
     } else {
         create_new_game_state()
     };
 
-    // 6b. Load persistent shuffle state and apply daily bonus/streak
-    let mut shuffle_state = ShuffleState::load();
-    let today = current_date_string();
-    let today_days = {
-        use std::time::SystemTime;
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        now / 86400
-    };
-    let daily_bonus = shuffle_state.claim_daily_bonus(&today);
+    let mut name_entry: Option<NameEntryState> = None;
     let mut daily_streak_achievement = None;
-    if daily_bonus {
-        game_state.shuffles_remaining += 1;
-        if !dev_mode.enabled {
-            let last_days = shuffle_state.last_launch_epoch_days;
-            if last_days == 0 {
-                shuffle_state.consecutive_days = 1;
-                daily_streak_achievement = Some(1);
-            } else if last_days == today_days - 1 {
-                shuffle_state.consecutive_days += 1;
-                daily_streak_achievement = Some(shuffle_state.consecutive_days);
-            } else {
-                shuffle_state.consecutive_days = 1;
-                daily_streak_achievement = Some(1);
-            }
-            shuffle_state.last_launch_epoch_days = today_days;
-        }
-    }
-    if !dev_mode.enabled {
-        shuffle_state.save();
-    }
 
-    // 6c. Resumed games stay in Playing state even if no valid moves remain.
-    // The player can explore the board and use Hint (Shift+H) to confirm no moves.
-
-    // Start the timer immediately for the first game
-    game_state.timer.start();
+    if dev_mode.enabled {
+        game_state.timer.start();
+    } else {
+        // Startup name entry prompt
+        name_entry = Some(NameEntryState::new(0, 0, 0, 0, 0));
+        game_state.status = GameStatus::NameEntry;
+    }
 
     // Track whether we're showing a quit confirmation
     let mut quit_confirmation = false;
 
-    // Track name entry state for leaderboard (active after winning with a qualifying score)
-    let mut name_entry: Option<NameEntryState> = None;
-    // Track whether name entry was triggered from GameOver (vs Won)
-    let mut name_entry_from_game_over = false;
     // Track which state to return to when leaving the leaderboard view
     let mut leaderboard_return_status = GameStatus::Won;
     // Track the currently selected menu item in the pause menu (0-indexed)
     let mut pause_menu_selection: usize = 0;
-    const PAUSE_MENU_ITEM_COUNT: usize = 9;
+    const PAUSE_MENU_ITEM_COUNT: usize = 10;
     // Track the currently selected menu item in the victory dialog (0-indexed)
     let mut victory_menu_selection: usize = 0;
     // Track the currently selected item in the No Moves dialog (0=Shuffle, 1=New Game)
@@ -313,40 +274,64 @@ fn main() {
                             match *keycode {
                                 sdl2::keyboard::Keycode::Return
                                 | sdl2::keyboard::Keycode::KpEnter => {
-                                    // Submit the name if valid
+                                    // Submit the username if valid
                                     if entry.is_valid() {
-                                        let date = current_date_string();
-                                        let shuffle_state_loaded = ShuffleState::load();
-                                        let lb_entry = LeaderboardEntry {
-                                            name: entry.text.clone(),
-                                            score: entry.score,
-                                            time_seconds: entry.time_seconds,
-                                            hints_used: entry.hints_used,
-                                            shuffles_used: entry.shuffles_used,
-                                            undos_used: entry.undos_used,
-                                            difficulty: match game_state.difficulty {
-                                                Difficulty::Easy => "easy".to_string(),
-                                                Difficulty::Normal => "normal".to_string(),
-                                            },
-                                            date,
-                                            consecutive_days: shuffle_state_loaded.consecutive_days,
-                                        };
-                                        if !dev_mode.enabled {
-                                            let mut leaderboard = Leaderboard::load();
-                                            leaderboard.insert(lb_entry);
-                                            leaderboard.save();
-                                        }
-                                        // Transition back based on origin
-                                        name_entry = None;
-                                        if name_entry_from_game_over {
-                                            name_entry_from_game_over = false;
-                                            let diff = game_state.difficulty; game_state = create_new_game_state_with_difficulty(diff);
-                                            game_state.timer.start();
+                                        current_user_name = entry.text.trim().to_string();
+
+                                        // Load settings for this user
+                                        settings = Settings::load(&current_user_name);
+                                        audio.set_mute(settings.muted);
+
+                                        // Load saved game if exists, or create new game
+                                        game_state = if !dev_mode.enabled && SavedGame::exists(&current_user_name) {
+                                            match load_saved_game(&current_user_name) {
+                                                Some(state) => {
+                                                    SavedGame::delete(&current_user_name);
+                                                    state
+                                                }
+                                                None => create_new_game_state(),
+                                            }
                                         } else {
-                                            game_state.status = GameStatus::Won;
+                                            create_new_game_state()
+                                        };
+
+                                        // Load shuffle state and apply daily bonus for user
+                                        let mut shuffle_state = ShuffleState::load(&current_user_name);
+                                        let today = current_date_string();
+                                        let today_days = {
+                                            use std::time::SystemTime;
+                                            let now = SystemTime::now()
+                                                .duration_since(SystemTime::UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_secs();
+                                            now / 86400
+                                        };
+                                        let daily_bonus = shuffle_state.claim_daily_bonus(&today);
+                                        if daily_bonus {
+                                            game_state.shuffles_remaining += 1;
+                                            if !dev_mode.enabled {
+                                                let last_days = shuffle_state.last_launch_epoch_days;
+                                                if last_days == 0 {
+                                                    shuffle_state.consecutive_days = 1;
+                                                    daily_streak_achievement = Some(1);
+                                                } else if last_days == today_days - 1 {
+                                                    shuffle_state.consecutive_days += 1;
+                                                    daily_streak_achievement = Some(shuffle_state.consecutive_days);
+                                                } else {
+                                                    shuffle_state.consecutive_days = 1;
+                                                    daily_streak_achievement = Some(1);
+                                                }
+                                                shuffle_state.last_launch_epoch_days = today_days;
+                                            }
                                         }
+                                        if !dev_mode.enabled {
+                                            shuffle_state.save(&current_user_name);
+                                        }
+
+                                        name_entry = None;
+                                        game_state.timer.start();
+                                        game_state.status = GameStatus::Playing;
                                     }
-                                    // If not valid (empty), ignore the Enter press
                                     continue;
                                 }
                                 sdl2::keyboard::Keycode::Backspace => {
@@ -354,13 +339,11 @@ fn main() {
                                     continue;
                                 }
                                 sdl2::keyboard::Keycode::Escape => {
-                                    // Cancel name entry
-                                    name_entry = None;
-                                    if name_entry_from_game_over {
-                                        name_entry_from_game_over = false;
-                                        game_state.status = GameStatus::GameOver;
+                                    if current_user_name.is_empty() {
+                                        break 'game_loop;
                                     } else {
-                                        game_state.status = GameStatus::Won;
+                                        name_entry = None;
+                                        game_state.status = GameStatus::Playing;
                                     }
                                     continue;
                                 }
@@ -457,9 +440,19 @@ fn main() {
                                     let _ = open::that(ABOUT_URL);
                                 }
                                 8 => {
+                                    // SWITCH USER
+                                    if !dev_mode.enabled {
+                                        save_current_game(&game_state, &current_user_name);
+                                    }
+                                    current_user_name.clear();
+                                    name_entry = Some(NameEntryState::new(0, 0, 0, 0, 0));
+                                    game_state.status = GameStatus::NameEntry;
+                                    pause_menu_selection = 0;
+                                }
+                                9 => {
                                     // SAVE + QUIT
                                     if !dev_mode.enabled {
-                                        save_current_game(&game_state);
+                                        save_current_game(&game_state, &current_user_name);
                                     }
                                     break 'game_loop;
                                 }
@@ -647,12 +640,28 @@ fn main() {
                                     let hints_used = game_state.base_hints + game_state.score.hints_used;
                                     let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
                                     let undos_used = game_state.base_undos + game_state.score.undos_used;
-                                    let last_name = Leaderboard::load().entries.first().map(|e| e.name.clone()).unwrap_or_default();
-                                    let mut entry_state = NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used);
-                                    entry_state.text = last_name;
-                                    name_entry = Some(entry_state);
-                                    name_entry_from_game_over = true;
-                                    game_state.status = GameStatus::NameEntry;
+                                    let shuffle_state_loaded = ShuffleState::load(&current_user_name);
+                                    let lb_entry = LeaderboardEntry {
+                                        name: current_user_name.clone(),
+                                        score,
+                                        time_seconds,
+                                        hints_used,
+                                        shuffles_used,
+                                        undos_used,
+                                        difficulty: match game_state.difficulty {
+                                            Difficulty::Easy => "easy".to_string(),
+                                            Difficulty::Normal => "normal".to_string(),
+                                        },
+                                        date: current_date_string(),
+                                        consecutive_days: shuffle_state_loaded.consecutive_days,
+                                    };
+                                    if !dev_mode.enabled {
+                                        let mut leaderboard = Leaderboard::load(&current_user_name);
+                                        leaderboard.insert(lb_entry);
+                                        leaderboard.save(&current_user_name);
+                                    }
+                                    leaderboard_return_status = GameStatus::GameOver;
+                                    game_state.status = GameStatus::Leaderboard;
                                 }
                                 1 => {
                                     // NEW GAME
@@ -661,7 +670,9 @@ fn main() {
                                 }
                                 2 => {
                                     // WAIT FOR SHUFFLE — save game and quit
-                                    save_current_game(&game_state);
+                                    if !dev_mode.enabled {
+                                        save_current_game(&game_state, &current_user_name);
+                                    }
                                     break 'game_loop;
                                 }
                                 _ => {}
@@ -818,33 +829,47 @@ fn main() {
                                     &renderer,
                                     x,
                                     y,
+                                    &current_user_name,
+                                    dev_mode.enabled,
                                 );
                                 if won {
                                     // Reset victory menu selection
                                     victory_menu_selection = 0;
-                                    // Check if total score qualifies for leaderboard
                                     let score = game_state.base_score + game_state.score.calculate_score();
-                                    let leaderboard = Leaderboard::load();
-                                    if leaderboard.qualifies(score) {
-                                        let total_time_ms = game_state.base_time_ms + game_state.timer.elapsed_ms;
-                                        let time_seconds = (total_time_ms / 1000) as u32;
-                                        let hints_used = game_state.base_hints + game_state.score.hints_used;
-                                        let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
-                                        let undos_used = game_state.base_undos + game_state.score.undos_used;
-                                        let last_name = leaderboard.entries.first().map(|e| e.name.clone()).unwrap_or_default();
-                                        let mut entry_state = NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used);
-                                        entry_state.text = last_name;
-                                        name_entry = Some(entry_state);
-                                        name_entry_from_game_over = false;
-                                        game_state.status = GameStatus::NameEntry;
+                                    let total_time_ms = game_state.base_time_ms + game_state.timer.elapsed_ms;
+                                    let time_seconds = (total_time_ms / 1000) as u32;
+                                    let hints_used = game_state.base_hints + game_state.score.hints_used;
+                                    let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
+                                    let undos_used = game_state.base_undos + game_state.score.undos_used;
+
+                                    let shuffle_state_loaded = ShuffleState::load(&current_user_name);
+                                    let lb_entry = LeaderboardEntry {
+                                        name: current_user_name.clone(),
+                                        score,
+                                        time_seconds,
+                                        hints_used,
+                                        shuffles_used,
+                                        undos_used,
+                                        difficulty: match game_state.difficulty {
+                                            Difficulty::Easy => "easy".to_string(),
+                                            Difficulty::Normal => "normal".to_string(),
+                                        },
+                                        date: current_date_string(),
+                                        consecutive_days: shuffle_state_loaded.consecutive_days,
+                                    };
+                                    if !dev_mode.enabled {
+                                        let mut leaderboard = Leaderboard::load(&current_user_name);
+                                        leaderboard.insert(lb_entry);
+                                        leaderboard.save(&current_user_name);
                                     }
+                                    game_state.status = GameStatus::Won;
                                 }
                             }
                         } else if game_state.status == GameStatus::Paused {
                             // Handle clicks on pause menu buttons
                             let (win_w, win_h) = renderer.window_size();
                             let dialog_w: u32 = 300;
-                            let dialog_h: u32 = 540;
+                            let dialog_h: u32 = 590;
                             let dialog_x = (win_w.saturating_sub(dialog_w)) / 2;
                             let dialog_y = (win_h.saturating_sub(dialog_h)) / 2;
 
@@ -852,7 +877,7 @@ fn main() {
                             let btn_h: u32 = 40;
                             let btn_x = dialog_x as i32 + ((dialog_w - btn_w) / 2) as i32;
                             let start_y = dialog_y as i32 + 60;
-                            let spacing: i32 = 50;
+                            let spacing: i32 = 48;
 
                             // Check which button was clicked
                             if x >= btn_x && x < btn_x + btn_w as i32 {
@@ -903,9 +928,18 @@ fn main() {
                                     // ABOUT — open website in default browser
                                     let _ = open::that(ABOUT_URL);
                                 } else if y >= start_y + spacing * 8 && y < start_y + spacing * 8 + btn_h as i32 {
+                                    // SWITCH USER
+                                    if !dev_mode.enabled {
+                                        save_current_game(&game_state, &current_user_name);
+                                    }
+                                    current_user_name.clear();
+                                    name_entry = Some(NameEntryState::new(0, 0, 0, 0, 0));
+                                    game_state.status = GameStatus::NameEntry;
+                                    pause_menu_selection = 0;
+                                } else if y >= start_y + spacing * 9 && y < start_y + spacing * 9 + btn_h as i32 {
                                     // SAVE + QUIT
                                     if !dev_mode.enabled {
-                                        save_current_game(&game_state);
+                                        save_current_game(&game_state, &current_user_name);
                                     }
                                     break 'game_loop;
                                 }
@@ -959,19 +993,34 @@ fn main() {
                             if x >= btn_x && x < btn_x + btn_w as i32
                                 && y >= save_y && y < save_y + btn_h as i32
                             {
-                                // Transition to name entry for leaderboard
                                 let score = game_state.base_score + game_state.score.live_score();
                                 let total_time_ms = game_state.base_time_ms + game_state.timer.elapsed_ms;
                                 let time_seconds = (total_time_ms / 1000) as u32;
                                 let hints_used = game_state.base_hints + game_state.score.hints_used;
                                 let shuffles_used = game_state.base_shuffles + game_state.score.shuffles_used;
                                 let undos_used = game_state.base_undos + game_state.score.undos_used;
-                                let last_name = Leaderboard::load().entries.first().map(|e| e.name.clone()).unwrap_or_default();
-                                let mut entry_state = NameEntryState::new(score, time_seconds, hints_used, shuffles_used, undos_used);
-                                entry_state.text = last_name;
-                                name_entry = Some(entry_state);
-                                name_entry_from_game_over = true;
-                                game_state.status = GameStatus::NameEntry;
+                                let shuffle_state_loaded = ShuffleState::load(&current_user_name);
+                                let lb_entry = LeaderboardEntry {
+                                    name: current_user_name.clone(),
+                                    score,
+                                    time_seconds,
+                                    hints_used,
+                                    shuffles_used,
+                                    undos_used,
+                                    difficulty: match game_state.difficulty {
+                                        Difficulty::Easy => "easy".to_string(),
+                                        Difficulty::Normal => "normal".to_string(),
+                                    },
+                                    date: current_date_string(),
+                                    consecutive_days: shuffle_state_loaded.consecutive_days,
+                                };
+                                if !dev_mode.enabled {
+                                    let mut leaderboard = Leaderboard::load(&current_user_name);
+                                    leaderboard.insert(lb_entry);
+                                    leaderboard.save(&current_user_name);
+                                }
+                                leaderboard_return_status = GameStatus::GameOver;
+                                game_state.status = GameStatus::Leaderboard;
                             }
 
                             // New Game button: y offset 264 from dialog top
@@ -988,7 +1037,9 @@ fn main() {
                             if x >= btn_x && x < btn_x + btn_w as i32
                                 && y >= wait_y && y < wait_y + btn_h as i32
                             {
-                                save_current_game(&game_state);
+                                if !dev_mode.enabled {
+                                    save_current_game(&game_state, &current_user_name);
+                                }
                                 break 'game_loop;
                             }
                         } else if game_state.status == GameStatus::Won {
@@ -1177,7 +1228,7 @@ fn main() {
                             if game_state.status == GameStatus::Playing
                                 || game_state.status == GameStatus::Paused
                             {
-                                save_current_game(&game_state);
+                                save_current_game(&game_state, &current_user_name);
                             }
                         }
                     }
@@ -1187,7 +1238,7 @@ fn main() {
                             || game_state.status == GameStatus::Paused
                         {
                             if !dev_mode.enabled {
-                                save_current_game(&game_state);
+                                save_current_game(&game_state, &current_user_name);
                             }
                             break 'game_loop;
                         } else {
@@ -1199,7 +1250,7 @@ fn main() {
                         audio.toggle_mute();
                         settings.muted = audio.is_muted();
                         if !dev_mode.enabled {
-                            settings.save();
+                            settings.save(&current_user_name);
                         }
                     }
 
@@ -1305,7 +1356,7 @@ fn main() {
             }
             GameStatus::Leaderboard => {
                 renderer.render_board(&game_state, layout_rect);
-                renderer.render_leaderboard();
+                renderer.render_leaderboard(&current_user_name);
             }
             GameStatus::Shortcuts => {
                 renderer.render_board(&game_state, layout_rect);
@@ -1343,6 +1394,8 @@ fn handle_select_tile(
     renderer: &Renderer,
     x: i32,
     y: i32,
+    user_name: &str,
+    dev_mode_enabled: bool,
 ) -> bool {
     // Hit-test to find which tile was clicked
     let (win_w, win_h) = renderer.window_size();
@@ -1382,14 +1435,16 @@ fn handle_select_tile(
                 audio.play_victory();
 
                 // Check and award repeatable trophies
-                let mut trophies = xmahjong::storage::TrophyState::load();
+                let mut trophies = xmahjong::storage::TrophyState::load(user_name);
                 trophies.check_perfect_combo(state.score.mismatches);
                 let level_elapsed = state.timer.elapsed_seconds();
                 trophies.check_rapid_clear(state.level, level_elapsed);
                 trophies.check_no_hints(state.score.hints_used);
                 trophies.check_no_shuffles(state.score.shuffles_used);
                 trophies.check_no_undos(state.score.undos_used);
-                trophies.save();
+                if !dev_mode_enabled {
+                    trophies.save(user_name);
+                }
 
                 return true;
             }
@@ -1597,7 +1652,7 @@ fn days_to_date(days_since_epoch: u64) -> (u32, u32, u32) {
 }
 
 /// Saves the current game state to disk so it can be resumed later.
-fn save_current_game(state: &GameState) {
+fn save_current_game(state: &GameState, user_name: &str) {
     let tiles: Vec<Option<u8>> = state.board.tiles.iter().map(|t| t.map(|tile| tile.face_id)).collect();
 
     let undo_stack: Vec<(usize, u8, usize, u8)> = state.undo_stack.iter().map(|entry| {
@@ -1626,16 +1681,16 @@ fn save_current_game(state: &GameState) {
         },
     };
 
-    saved.save();
+    saved.save(user_name);
 }
 
-/// Loads a saved game from disk and reconstructs the GameState.
+/// Loads a saved game from disk for a specific user and reconstructs the GameState.
 /// Returns None if loading fails.
-fn load_saved_game() -> Option<GameState> {
+fn load_saved_game(user_name: &str) -> Option<GameState> {
     use xmahjong::board::{Board, Tile, turtle_layout};
     use xmahjong::logic::UndoEntry;
 
-    let saved = SavedGame::load()?;
+    let saved = SavedGame::load(user_name)?;
     let layout = turtle_layout();
 
     // Validate tile count matches layout
