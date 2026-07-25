@@ -1,10 +1,11 @@
-# Graph Report - .  (2026-07-25)
+# Graph Report - xmahjong  (2026-07-25)
 
 ## Corpus Check
-- cluster-only mode — file stats not available
+- 31 files · ~1,434,259 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 470 nodes · 1213 edges · 20 communities (17 shown, 3 thin omitted)
+- 506 nodes · 1247 edges · 21 communities (18 shown, 3 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 54 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -31,6 +32,7 @@
 - build.rs
 - bump_version.sh script
 - run.sh script
+- Level Design
 
 ## God Nodes (most connected - your core abstractions)
 1. `Renderer` - 59 edges
@@ -59,19 +61,19 @@
 ## Import Cycles
 - 2-file cycle: `src/game_state.rs -> src/logic.rs -> src/game_state.rs`
 
-## Communities (20 total, 3 thin omitted)
+## Communities (21 total, 3 thin omitted)
 
 ### Community 0 - "turtle_layout"
 Cohesion: 0.07
 Nodes (64): blocking_relations_computed_correctly(), BlockingRelation, board_free_tiles_empty_board(), board_free_tiles_only_top_layer(), board_free_tiles_updates_after_removal(), board_is_free_blocked_from_above(), board_is_free_blocked_on_both_sides(), board_is_free_returns_false_for_empty_position() (+56 more)
 
 ### Community 1 - "Renderer"
-Cohesion: 0.10
-Nodes (26): Canvas, Color, Font, Point, Rect, Sdl, Sdl2TtfContext, assets_path() (+18 more)
+Cohesion: 0.08
+Nodes (39): Canvas, Color, Font, Point, Rect, Sdl, Sdl2TtfContext, TilePosition (+31 more)
 
 ### Community 2 - "GameState"
 Cohesion: 0.06
-Nodes (42): Animation, Difficulty, GameState, GameStatus, HintState, name_entry_is_valid_checks_1_to_20_chars(), name_entry_new_creates_empty_state(), name_entry_pop_char_removes_last() (+34 more)
+Nodes (41): Animation, Difficulty, GameState, GameStatus, HintState, name_entry_is_valid_checks_1_to_20_chars(), name_entry_new_creates_empty_state(), name_entry_pop_char_removes_last() (+33 more)
 
 ### Community 3 - "storage.rs"
 Cohesion: 0.08
@@ -98,8 +100,8 @@ Cohesion: 0.31
 Nodes (17): Build-Msi(), Build-Msix(), Build-Portable(), ConvertTo-LicenseRtf(), Download-File(), Expand-Zip(), Find-SDL2SubDir(), Find-WindowsSdkTool() (+9 more)
 
 ### Community 9 - "tile_screen_rect"
-Cohesion: 0.41
-Nodes (12): compute_layout_rect(), compute_thickness(), hit_test(), LayoutMetrics, tile_screen_rect(), hit_test_boundary_pixels(), hit_test_center_of_tile_returns_correct_index(), hit_test_empty_area_returns_none() (+4 more)
+Cohesion: 0.09
+Nodes (22): About, Assets, Building, Controls, Data Storage, Difficulty, Features, Files (+14 more)
 
 ### Community 10 - "package_macos.sh"
 Cohesion: 0.27
@@ -117,25 +119,29 @@ Nodes (6): arb_difficulty(), arb_saved_game(), make_state(), Strategy, String, V
 Cohesion: 0.50
 Nodes (7): build_appimage(), build_deb(), build_rpm(), prepare_staging(), package.sh script, build_release(), main()
 
+### Community 20 - "Level Design"
+Cohesion: 0.14
+Nodes (12): Difficulty, Dog Phase (Levels 11-20), Endgame Phase (Levels 51-100), How It Works, How It Works, Level Design, Penguin Phase (Levels 1-10), Persistence (+4 more)
+
 ## Knowledge Gaps
-- **2 isolated node(s):** `bump_version.sh script`, `run.sh script`
+- **28 isolated node(s):** `bump_version.sh script`, `run.sh script`, `Penguin Phase (Levels 1-10)`, `Dog Phase (Levels 11-20)`, `Space Phase (Levels 21-50)` (+23 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Renderer` connect `Renderer` to `tile_screen_rect`, `GameState`?**
-  _High betweenness centrality (0.146) - this node is a cross-community bridge._
-- **Why does `GameTimer` connect `timer.rs` to `turtle_layout`, `tile_screen_rect`, `GameState`, `logic_properties.rs`?**
-  _High betweenness centrality (0.133) - this node is a cross-community bridge._
+- **Why does `Renderer` connect `Renderer` to `GameState`?**
+  _High betweenness centrality (0.132) - this node is a cross-community bridge._
+- **Why does `GameTimer` connect `timer.rs` to `turtle_layout`, `Renderer`, `GameState`, `logic_properties.rs`?**
+  _High betweenness centrality (0.119) - this node is a cross-community bridge._
 - **Why does `Board` connect `Board` to `turtle_layout`, `GameState`, `logic_properties.rs`?**
-  _High betweenness centrality (0.104) - this node is a cross-community bridge._
+  _High betweenness centrality (0.093) - this node is a cross-community bridge._
 - **Are the 34 inferred relationships involving `turtle_layout()` (e.g. with `all_tiles_have_valid_positions()` and `different_seeds_produce_different_boards()`) actually correct?**
   _`turtle_layout()` has 34 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `bump_version.sh script`, `run.sh script` to the rest of the system?**
-  _2 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `bump_version.sh script`, `run.sh script`, `Penguin Phase (Levels 1-10)` to the rest of the system?**
+  _28 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `turtle_layout` be split into smaller, more focused modules?**
-  _Cohesion score 0.07315315315315316 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0727927927927928 - nodes in this community are weakly interconnected._
 - **Should `Renderer` be split into smaller, more focused modules?**
-  _Cohesion score 0.09507042253521127 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08019246190858059 - nodes in this community are weakly interconnected._

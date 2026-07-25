@@ -19,5 +19,6 @@
   "17": "bump_version.ps1",
   "18": "run.ps1",
   "19": "lib.rs",
-  "20": "Level Design"
+  "20": "Level Design",
+  "21": "partial_board_strategy"
 }
